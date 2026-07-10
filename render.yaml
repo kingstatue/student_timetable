@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: mgm-student-portal
+    runtime: static
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /timetable.json
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /student-sw.js
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+      - path: /static/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
