@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MGM Student AI Portal</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#2563eb">
+    
+    <link rel="manifest" href="./student-manifest.json">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #eff6ff 100%);
+            min-height: 100vh;
+            /* Safe area for notched phones */
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .chat-stream::-webkit-scrollbar { width: 4px; }
+        .chat-stream::-webkit-scrollbar-track { background: transparent; }
+        .chat-stream::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        /* Minimum tap target size for all buttons */
+        button { min-height: 44px; }
+        /* Prevent text size adjustment on orientation change */
+        html { -webkit-text-size-adjust: 100%; }
+        /* Chat height: dynamic on all screen sizes */
+        .chat-height {
+            height: min(380px, 42dvh);
+        }
+        @media (max-height: 700px) {
+            .chat-height { height: 260px; }
+        }
+        /* Slot badge — prevent wrapping */
+        .slot-badge {
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        /* Smooth scroll for iOS */
+        .smooth-scroll { -webkit-overflow-scrolling: touch; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased" style="padding-bottom: max(3rem, env(safe-area-inset-bottom))">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 shadow-sm" style="padding-top: env(safe-area-inset-top, 0px)">
+        <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+            <div class="flex items-center space-x-2 min-w-0">
+                <div class="bg-blue-600 text-white p-2 rounded-xl shadow-md shadow-blue-200 shrink-0">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-bold text-base leading-tight text-slate-900 truncate" id="college-name">MGM College Portal</h1>
+                    <p class="text-xs text-slate-500 flex items-center">
+                        <i data-lucide="users" class="w-3 h-3 mr-1 shrink-0"></i>
+                        <span class="truncate">Section: <span id="current-section-badge" class="font-semibold text-blue-600">Loading...</span></span>
+                    </p>
+                </div>
+            </div>
+            <button onclick="changeSection()" class="shrink-0 text-xs bg-slate-100 active:bg-slate-200 text-slate-600 px-3 py-2 rounded-lg font-medium transition flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                <span class="hidden xs:inline sm:inline">Change</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-3 sm:px-4 mt-4 space-y-4 pb-4">
+
+        <!-- Hidden section dropdown — used internally only for Change Section -->
+        <div id="section-picker-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl border border-slate-100">
+                <div class="text-center space-y-3">
+                    <div class="mx-auto w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                        <i data-lucide="user-check" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900">Change Section</h3>
+                    <p class="text-sm text-slate-500">Select a section and enter its PIN.</p>
+                </div>
+                <div class="mt-6 space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Section</label>
+                        <select id="section-dropdown" class="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 font-medium" style="font-size: 16px">
+                        </select>
+                    </div>
+                    <button onclick="saveSelectedSection()" class="w-full bg-blue-600 active:bg-blue-800 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-blue-200 flex items-center justify-center space-x-2">
+                        <span>Continue</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── PIN-First Login Screen ─────────────────────────────────────── -->
+        <div id="pin-login-modal" class="fixed inset-0 bg-gradient-to-br from-slate-900 to-indigo-950 z-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                <div class="text-center mb-5">
+                    <div class="mx-auto w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-3">
+                        <i data-lucide="graduation-cap" class="w-7 h-7"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-900">MGM Student Portal</h2>
+                    <p class="text-sm text-slate-500 mt-1">Enter your class PIN to continue</p>
+                </div>
+                <div class="flex justify-center gap-4 mb-2">
+                    <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-0"></div>
+                    <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-1"></div>
+                    <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-2"></div>
+                    <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-3"></div>
+                </div>
+                <p id="login-pin-error" class="text-center text-xs text-red-500 font-medium mb-3 h-4"></p>
+                <div class="grid grid-cols-3 gap-2 mb-2">
+                    <button onclick="loginPadPress('1')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">1</button>
+                    <button onclick="loginPadPress('2')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">2</button>
+                    <button onclick="loginPadPress('3')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">3</button>
+                    <button onclick="loginPadPress('4')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">4</button>
+                    <button onclick="loginPadPress('5')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">5</button>
+                    <button onclick="loginPadPress('6')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">6</button>
+                    <button onclick="loginPadPress('7')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">7</button>
+                    <button onclick="loginPadPress('8')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">8</button>
+                    <button onclick="loginPadPress('9')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">9</button>
+                    <button onclick="loginPadClear()" class="py-3.5 text-sm font-semibold text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">CLR</button>
+                    <button onclick="loginPadPress('0')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">0</button>
+                    <button onclick="loginPadBackspace()" class="py-3.5 text-lg text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">⌫</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Section Confirmation Modal ────────────────────────────────── -->
+        <div id="pin-confirm-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center space-y-4">
+                <div class="mx-auto w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
+                    <i data-lucide="check-circle" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-500 mb-1">PIN matched! You are</p>
+                    <p id="confirm-section-name" class="text-xl font-bold text-indigo-700"></p>
+                </div>
+                <p class="text-sm text-slate-400">Is this your section?</p>
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <button onclick="confirmSectionYes()" class="py-3 bg-emerald-600 active:bg-emerald-700 text-white font-semibold rounded-xl shadow-md shadow-emerald-100">
+                        ✓ Yes, that's me
+                    </button>
+                    <button onclick="confirmSectionNo()" class="py-3 bg-slate-100 active:bg-slate-200 text-slate-700 font-semibold rounded-xl">
+                        ✗ No, try again
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <section class="glass-panel rounded-2xl p-3 shadow-sm">
+            <!-- Row 1: Today, Tomorrow, Day picker -->
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <button onclick="renderDaySchedule('today')" class="flex flex-col items-center justify-center py-3 px-2 bg-blue-50 active:bg-blue-100 text-blue-700 rounded-xl transition border border-blue-100">
+                    <i data-lucide="calendar-days" class="w-5 h-5 mb-1"></i>
+                    <span class="text-xs font-semibold">Today</span>
+                </button>
+                <button onclick="renderDaySchedule('tomorrow')" class="flex flex-col items-center justify-center py-3 px-2 bg-emerald-50 active:bg-emerald-100 text-emerald-700 rounded-xl transition border border-emerald-100">
+                    <i data-lucide="calendar-range" class="w-5 h-5 mb-1"></i>
+                    <span class="text-xs font-semibold">Tomorrow</span>
+                </button>
+                <div class="relative">
+                    <select id="day-selector" onchange="renderDaySchedule(this.value)" class="w-full h-full appearance-none flex flex-col items-center text-center justify-center py-3 px-2 bg-purple-50 active:bg-purple-100 text-purple-700 rounded-xl transition border border-purple-100 font-semibold text-xs focus:outline-none cursor-pointer">
+                        <option value="" disabled selected>Pick Day</option>
+                        <option value="Monday">Monday</option>
+                        <option value="Tuesday">Tuesday</option>
+                        <option value="Wednesday">Wednesday</option>
+                        <option value="Thursday">Thursday</option>
+                        <option value="Friday">Friday</option>
+                        <option value="Saturday">Saturday</option>
+                    </select>
+                    <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-purple-500">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                    </div>
+                </div>
+            </div>
+            <!-- Row 2: Whole Week, Ask AI -->
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="renderWholeWeek()" class="flex flex-col items-center justify-center py-3 bg-amber-50 active:bg-amber-100 text-amber-700 rounded-xl transition border border-amber-100">
+                    <i data-lucide="table" class="w-5 h-5 mb-1"></i>
+                    <span class="text-xs font-semibold">Whole Week</span>
+                </button>
+                <button onclick="scrollToAI()" class="flex flex-col items-center justify-center py-3 bg-indigo-600 active:bg-indigo-700 text-white rounded-xl transition border border-indigo-700 shadow-md shadow-indigo-100">
+                    <i data-lucide="bot" class="w-5 h-5 mb-1"></i>
+                    <span class="text-xs font-semibold">Ask AI</span>
+                </button>
+            </div>
+        </section>
+
+        <section id="timetable-display-card" class="glass-panel rounded-2xl p-4 shadow-sm hidden">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                <div class="flex items-center space-x-2 min-w-0">
+                    <div id="view-title-icon" class="p-1.5 rounded-lg bg-slate-100 text-slate-700 shrink-0">
+                        <i data-lucide="calendar" class="w-4 h-4"></i>
+                    </div>
+                    <h2 id="view-title" class="font-bold text-base text-slate-900 truncate">Timetable View</h2>
+                </div>
+                <button onclick="closeTimetableView()" class="text-slate-400 active:text-slate-600 p-2 rounded-lg active:bg-slate-50 transition shrink-0 ml-2">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="timetable-render-target" class="smooth-scroll">
+            </div>
+        </section>
+
+        <section id="ai-section" class="glass-panel rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                    <div class="flex items-center space-x-1.5">
+                        <i data-lucide="bot" class="w-5 h-5 text-indigo-400"></i>
+                        <span class="font-bold tracking-wide text-sm text-slate-100">Timetable AI Assistant</span>
+                    </div>
+                </div>
+                <button onclick="clearChatLog()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition flex items-center space-x-1 border border-slate-700">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Clear Chat</span>
+                </button>
+            </div>
+
+            <div id="chat-stream-log" class="chat-stream chat-height smooth-scroll p-4 overflow-y-auto space-y-3 bg-slate-50/50 flex flex-col">
+                <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm max-w-[85%] self-start space-y-2">
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        Hello! I'm your timetable assistant. You can ask me things like:
+                    </p>
+                    <div class="grid grid-cols-2 gap-1.5 pt-1 text-xs text-blue-600">
+                        <button onclick="submitSpokenQuery('Show today timetable')" class="text-left bg-amber-50 active:bg-amber-100 p-2.5 rounded-lg border border-amber-100 font-medium leading-snug text-amber-700">Announce today</button>
+                        <button onclick="submitSpokenQuery('What is my first class today?')" class="text-left bg-amber-50 active:bg-amber-100 p-2.5 rounded-lg border border-amber-100 font-medium leading-snug text-amber-700">Announce first</button>
+                        <button onclick="submitSuggestedQuery('What is my first class today?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">First class today?</button>
+                        <button onclick="submitSuggestedQuery('What is my next class?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Next class?</button>
+                        <button onclick="submitSuggestedQuery('What class is at 11 today?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 11 today?</button>
+                        <button onclick="submitSuggestedQuery('Where is DBMS class?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Where is DBMS?</button>
+                        <button onclick="submitSuggestedQuery('Who teaches DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Who teaches DBMS?</button>
+                        <button onclick="submitSuggestedQuery('Show whole week timetable')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Whole week?</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-white border-t border-slate-200" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))">
+                <form id="ai-input-form" onsubmit="handleAIQueryFormSubmit(event)" class="flex items-center gap-2">
+                    <button type="button" id="voice-input-button" onclick="toggleVoiceInput()" aria-label="Ask by voice" class="bg-emerald-50 active:bg-emerald-100 text-emerald-700 p-3.5 rounded-xl transition border border-emerald-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="mic" class="w-5 h-5"></i>
+                    </button>
+                    <input type="text" id="ai-user-input-field" inputmode="text" placeholder="Ask: next class, who teaches CN..." autocomplete="off" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition" style="font-size: 16px">
+                    <button type="button" id="voice-reply-button" onclick="toggleVoiceReplies()" aria-label="Toggle spoken replies" class="bg-amber-50 active:bg-amber-100 text-amber-700 p-3.5 rounded-xl transition border border-amber-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="volume-2" class="w-5 h-5"></i>
+                    </button>
+                    <button type="submit" class="bg-blue-600 active:bg-blue-700 text-white p-3.5 rounded-xl transition shadow-md shadow-blue-100 shrink-0">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </form>
+                <p id="voice-assistant-status" class="text-[11px] text-slate-400 mt-2 px-1">Voice input is available on supported browsers.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        let timetableDatabase = null;
+        let registeredSections = [];
+        let localSelectedSection = '';
+
+        // ════════════════════════════════════════════════════════════════════
+        // SECTION PIN MAP  —  Edit PINs here before deploying
+        // Format: 'Exact Section Name' : 'PIN'
+        // ════════════════════════════════════════════════════════════════════
+        const SECTION_PINS = {
+            '1st BCA A'         : '1001',
+            '1st BCA B'         : '1002',
+            '1st BCA C(AIML)'   : '1003',
+            '1st BSc'           : '1004',
+            '1st BCA A (Eve)'   : '1005',
+            '1st BCA B (Eve)'   : '1006',
+            '2nd BCA A'         : '2001',
+            '2nd BCA B'         : '2002',
+            '2nd BCA C'         : '2003',
+            '2nd BSc'           : '2004',
+            '2nd BCA A (Eve)'   : '2005',
+            '2nd BCA B (Eve)'   : '2006',
+            '3rd BCA A'         : '3001',
+            '3rd BCA B'         : '3002',
+            '3rd BCA C'         : '3003',
+            '3rd BSc'           : '3004',
+            '3rd BCA A (Eve)'   : '3005',
+            '3rd BCA B (Eve)'   : '3006',
+        };
+        // Max wrong attempts before session lock
+        const PIN_MAX_ATTEMPTS = 3;
+
+        // Login-screen state (PIN-first flow)
+        let loginPinInput    = '';
+        let loginAttempts    = 0;
+        let loginPendingSection = ''; // section found by PIN, waiting for confirmation
+
+        // ── PIN-First Login Screen functions ────────────────────────────────
+        function showLoginScreen() {
+            loginPinInput = '';
+            loginAttempts = 0;
+            loginPendingSection = '';
+            updateLoginDots();
+            const err = document.getElementById('login-pin-error');
+            if (err) err.innerText = '';
+            // Re-enable all numpad buttons in case they were locked
+            document.querySelectorAll('#pin-login-modal button').forEach(b => {
+                b.disabled = false;
+                b.classList.remove('opacity-40');
+            });
+            document.getElementById('pin-login-modal').classList.remove('hidden');
+        }
+
+        function hideLoginScreen() {
+            document.getElementById('pin-login-modal').classList.add('hidden');
+        }
+
+        function loginPadPress(digit) {
+            if (loginPinInput.length >= 4) return;
+            loginPinInput += digit;
+            updateLoginDots();
+            if (loginPinInput.length === 4) {
+                setTimeout(verifyLoginPIN, 150);
+            }
+        }
+
+        function loginPadBackspace() {
+            loginPinInput = loginPinInput.slice(0, -1);
+            updateLoginDots();
+        }
+
+        function loginPadClear() {
+            loginPinInput = '';
+            updateLoginDots();
+        }
+
+        function updateLoginDots() {
+            for (let i = 0; i < 4; i++) {
+                const dot = document.getElementById('login-dot-' + i);
+                if (!dot) continue;
+                if (i < loginPinInput.length) {
+                    dot.className = 'w-5 h-5 rounded-full border-2 border-indigo-600 bg-indigo-600 transition-all';
+                } else {
+                    dot.className = 'w-5 h-5 rounded-full border-2 border-slate-300 transition-all';
+                }
+            }
+        }
+
+        function verifyLoginPIN() {
+            // Search all sections for a matching PIN
+            const matched = Object.entries(SECTION_PINS).find(([, pin]) => pin === loginPinInput);
+
+            if (matched) {
+                const section = matched[0];
+                loginPendingSection = section;
+                loginPinInput = '';
+                updateLoginDots();
+                // Show confirmation modal
+                hideLoginScreen();
+                const nameEl = document.getElementById('confirm-section-name');
+                if (nameEl) nameEl.innerText = section;
+                document.getElementById('pin-confirm-modal').classList.remove('hidden');
+                lucide.createIcons();
+            } else {
+                loginAttempts++;
+                loginPinInput = '';
+                updateLoginDots();
+                const err = document.getElementById('login-pin-error');
+                const remaining = PIN_MAX_ATTEMPTS - loginAttempts;
+                if (remaining <= 0) {
+                    if (err) err.innerText = 'Too many attempts. Contact your teacher.';
+                    document.querySelectorAll('#pin-login-modal button').forEach(b => {
+                        if (b.getAttribute('onclick') && b.getAttribute('onclick').includes('loginPad')) {
+                            b.disabled = true;
+                            b.classList.add('opacity-40');
+                        }
+                    });
+                } else {
+                    if (err) err.innerText = `Wrong PIN. ${remaining} attempt(s) left.`;
+                }
+            }
+        }
+
+        function confirmSectionYes() {
+            document.getElementById('pin-confirm-modal').classList.add('hidden');
+            unlockSection(loginPendingSection);
+            loginPendingSection = '';
+        }
+
+        function confirmSectionNo() {
+            document.getElementById('pin-confirm-modal').classList.add('hidden');
+            loginPendingSection = '';
+            // Go back to login screen with cleared state
+            showLoginScreen();
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            await bootstrapTimetableEngine();
+            if ('serviceWorker' in navigator) {
+                // Disable old PWA/service-worker cache while timetable ordering is being fixed.
+                // Old cached JavaScript can keep showing the previous unsorted order even
+                // after downloading a corrected index.html.
+                navigator.serviceWorker.getRegistrations()
+                    .then(registrations => registrations.forEach(reg => reg.unregister()))
+                    .catch(() => {});
+            }
+            if ('caches' in window) {
+                caches.keys()
+                    .then(keys => keys.forEach(key => caches.delete(key)))
+                    .catch(() => {});
+            }
+            initVoiceAssistant();
+            lucide.createIcons();
+        });
+
+        async function bootstrapTimetableEngine() {
+            try {
+                const response = await fetch('timetable.json', { cache: 'no-store' });
+                if (!response.ok) throw new Error("Could not retrieve JSON database.");
+                timetableDatabase = await response.json();
+                if (timetableDatabase.college) {
+                    document.getElementById('college-name').innerText = timetableDatabase.college;
+                }
+                extractUniqueSectionsDynamically();
+                checkStoredSectionState();
+            } catch (error) {
+                console.error("Critical failure bootstrapping database system parameters:", error);
+            }
+        }
+
+        // ── PIN storage helpers ──────────────────────────────────────────────
+        function pinStorageKey(section) {
+            return 'mgm_pin_unlocked_' + btoa(section).replace(/=/g,'');
+        }
+
+        function isSectionUnlocked(section) {
+            return localStorage.getItem(pinStorageKey(section)) === '1';
+        }
+
+        function markSectionUnlocked(section) {
+            localStorage.setItem(pinStorageKey(section), '1');
+        }
+
+        function clearSectionUnlock(section) {
+            localStorage.removeItem(pinStorageKey(section));
+        }
+
+        // Apply section to UI without PIN check (called after unlock)
+        function unlockSection(section) {
+            markSectionUnlocked(section);
+            localSelectedSection = section;
+            localStorage.setItem('student_selected_section', section);
+            updateUIPerferenceBadges();
+            hideSectionPickerModal();
+            closeTimetableView();
+        }
+
+        // Change Section — clears unlock and shows PIN login again
+        function changeSection() {
+            if (localSelectedSection) {
+                clearSectionUnlock(localSelectedSection);
+            }
+            localStorage.removeItem('student_selected_section');
+            localSelectedSection = '';
+            closeTimetableView();
+            showLoginScreen();
+        }
+
+        function extractUniqueSectionsDynamically() {
+            const sectionSet = new Set();
+
+            // PRIMARY: Use daywise structure — has canonical clean names like "2nd BCA A", "2nd BCA A (Eve)"
+            if (timetableDatabase && timetableDatabase.daywise) {
+                Object.values(timetableDatabase.daywise).forEach(dayData => {
+                    (dayData.sections || []).forEach(sec => { if (sec.name) sectionSet.add(sec.name); });
+                    (dayData.eveningSections || []).forEach(sec => { if (sec.name) sectionSet.add(sec.name); });
+                });
+            }
+
+            // FALLBACK: faculty entries (in case daywise is absent)
+            if (sectionSet.size === 0 && timetableDatabase && timetableDatabase.faculty) {
+                Object.values(timetableDatabase.faculty).forEach(facObj => {
+                    if (!facObj.days) return;
+                    Object.values(facObj.days).forEach(daySlots => {
+                        Object.values(daySlots).forEach(cellValue => {
+                            if (!cellValue || typeof cellValue !== 'string') return;
+                            const firstLineClean = cellValue.split('\n')[0].trim();
+                            if (firstLineClean.toUpperCase().includes("BCA") || firstLineClean.toUpperCase().includes("BSC") || firstLineClean.toUpperCase().includes("BA")) {
+                                firstLineClean.split(/[,&]/).forEach(part => {
+                                    const sectionName = part.trim();
+                                    if (sectionName) sectionSet.add(sectionName);
+                                });
+                            }
+                        });
+                    });
+                });
+            }
+
+            registeredSections = Array.from(sectionSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+            const dropContainer = document.getElementById('section-dropdown');
+            if (dropContainer) {
+                dropContainer.innerHTML = '';
+                registeredSections.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.innerText = section;
+                    dropContainer.appendChild(option);
+                });
+            }
+        }
+
+        function checkStoredSectionState() {
+            const preservedPreference = localStorage.getItem('student_selected_section');
+            if (preservedPreference) {
+                const exactMatch = registeredSections.includes(preservedPreference);
+                const normMatch = !exactMatch && registeredSections.find(
+                    s => normalizeSectionName(s) === normalizeSectionName(preservedPreference)
+                );
+                const resolvedSection = exactMatch ? preservedPreference : (normMatch || null);
+
+                if (resolvedSection) {
+                    if (isSectionUnlocked(resolvedSection)) {
+                        // Already unlocked on this device — go straight in
+                        localSelectedSection = resolvedSection;
+                        localStorage.setItem('student_selected_section', resolvedSection);
+                        updateUIPerferenceBadges();
+                        return;
+                    }
+                }
+            }
+            // New user or no valid stored section — show PIN-first login
+            showLoginScreen();
+        }
+
+        function showSectionPickerModal() {
+            const modal = document.getElementById('section-picker-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function hideSectionPickerModal() {
+            const modal = document.getElementById('section-picker-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function saveSelectedSection() {
+            const dropdown = document.getElementById('section-dropdown');
+            if (!dropdown) return;
+            const pickerValue = dropdown.value;
+            if (!pickerValue) return;
+
+            if (isSectionUnlocked(pickerValue)) {
+                unlockSection(pickerValue);
+            } else {
+                hideSectionPickerModal();
+                localStorage.removeItem('student_selected_section');
+                localSelectedSection = '';
+                showLoginScreen();
+            }
+        }
+
+        function updateUIPerferenceBadges() {
+            const badge = document.getElementById('current-section-badge');
+            if (badge) badge.innerText = localSelectedSection;
+        }
+
+        function closeTimetableView() {
+            const displayCard = document.getElementById('timetable-display-card');
+            if (displayCard) displayCard.classList.add('hidden');
+            const daySelector = document.getElementById('day-selector');
+            if (daySelector) daySelector.value = "";
+        }
+
+        function resolveDayOfWeekName(keySignature) {
+            const dateInstance = new Date();
+            if (keySignature === 'tomorrow') {
+                dateInstance.setDate(dateInstance.getDate() + 1);
+            }
+            const structuralDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            return structuralDays[dateInstance.getDay()];
+        }
+
+        function parseSlotTimeToMinutes(slotString) {
+            try {
+                // Handle weekday evening slots like "2:15-3", "3-3:45", "3:45-4:30"
+                // plus Saturday evening slots like "1-1.45", "1.45-2.30" and special
+                // slot labels like "1.30-2.15(3rdBCAOnly)".
+                const cleanSlot = slotString.replace(/\(.*?\)/g, '').trim();
+                const startTimePart = cleanSlot.split('-')[0].trim();
+                let [hours, minutes] = startTimePart.split(/[:.]/).map(Number);
+
+                // All 1..7 timetable starts are afternoon/evening slots, regardless of
+                // whether they use dot or colon notation. Previously colon slots such as
+                // "3:45-4:30" were parsed as 03:45, causing "3-3:45" to appear after it.
+                if (hours >= 1 && hours <= 7) {
+                    hours += 12;
+                }
+                return hours * 60 + (minutes || 0);
+            } catch(e) {
+                return 0;
+            }
+        }
+
+        function compareScheduleItemsBySlot(a, b) {
+            return parseSlotTimeToMinutes(a.slot) - parseSlotTimeToMinutes(b.slot);
+        }
+
+        /**
+         * Determines if a slot string belongs to the evening shift.
+         * Evening slots use colon notation (2:15-3, 3-3:45, 5:30-6:15) or
+         * Saturday afternoon slots (1-1.45, 1.45-2.30 … 5-5.45).
+         */
+        function isSlotEvening(slotTime, dayName) {
+            // Colon notation is exclusively used for weekday evening slots
+            if (slotTime.includes(':')) return true;
+            // Special 3rd BCA only slot
+            if (slotTime.includes('(3rdBCAOnly)')) return true;
+            // Saturday: evening section slots start from 1-1.45 onward
+            if (dayName === 'Saturday') {
+                const mins = parseSlotTimeToMinutes(slotTime);
+                // Saturday day slots end at 11.55-12.45 (< 780 mins = 1:00 PM)
+                // Saturday evening starts at 1-1.45 (780 mins)
+                return mins >= 780;
+            }
+            return false;
+        }
+
+        /**
+         * Normalize section names for comparison.
+         * Strips ordinal suffixes: "2nd BCA A" → "2 bca a", "2BCA A" → "2 bca a"
+         * Also handles Eve: "2nd BCA A (Eve)" → "2 bca a (eve)"
+         */
+        function normalizeSectionName(name) {
+            return name
+                .toLowerCase()
+                .replace(/(\d+)(st|nd|rd|th)\s*/g, '$1 ') // "2nd " → "2 "
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        /**
+         * ROBUST DATA FILTERING
+         * Pulls data from BOTH faculty entries AND the daywise section cells
+         * so that ENG, CONST, SANS, KAN, HND entries are included.
+         */
+        function getSectionScheduleForDay(dayName, targetSection) {
+            const matchMap = new Map(); // key: slotTime → entry (deduplicates)
+            if (!timetableDatabase) return [];
+
+            const isEveningSection = targetSection.toLowerCase().includes("(eve)") ||
+                                     targetSection.toLowerCase().includes("evening");
+
+            const targetNorm = normalizeSectionName(targetSection);
+
+            // ── SOURCE 1: Faculty entries ──────────────────────────────────────
+            if (timetableDatabase.faculty) {
+                Object.entries(timetableDatabase.faculty).forEach(([facultyCode, facObj]) => {
+                    if (!facObj.days || !facObj.days[dayName]) return;
+
+                    Object.entries(facObj.days[dayName]).forEach(([slotTime, cellValue]) => {
+                        if (!cellValue) return;
+
+                        const slotEvening = isSlotEvening(slotTime, dayName);
+                        if (isEveningSection !== slotEvening) return;
+
+                        const cellLines = cellValue.split('\n');
+                        const sectionHeaderLine = cellLines[0].trim();
+
+                        // Exact or comma/ampersand separated match — normalize both sides
+                        const parts = sectionHeaderLine.split(/[,&]/).map(p => normalizeSectionName(p));
+                        const sectionMatches = parts.includes(targetNorm);
+
+                        if (sectionMatches) {
+                            const subjectRoomInfo = cellLines.slice(1).join(' ').trim() || sectionHeaderLine;
+                            const key = slotTime;
+                            if (!matchMap.has(key)) {
+                                matchMap.set(key, {
+                                    slot: slotTime,
+                                    rawContent: cellValue,
+                                    subjectDetails: subjectRoomInfo,
+                                    faculty: facultyCode
+                                });
+                            } else {
+                                // If another faculty teaches the same slot, append faculty code
+                                const existing = matchMap.get(key);
+                                if (!existing.faculty.includes(facultyCode)) {
+                                    existing.faculty += ' + ' + facultyCode;
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+
+            // ── SOURCE 2: Daywise section cells (ENG, CONST, SANS, KAN, HND etc.) ──
+            // These subjects have no faculty entry so they only appear in daywise data
+            if (timetableDatabase.daywise && timetableDatabase.daywise[dayName]) {
+                const dayData = timetableDatabase.daywise[dayName];
+                // Pick the right list: sections (day) or eveningSections
+                const sectionList = isEveningSection
+                    ? (dayData.eveningSections || [])
+                    : (dayData.sections || []);
+
+                sectionList.forEach(secObj => {
+                    if (normalizeSectionName(secObj.name) !== targetNorm) return;
+                    if (!secObj.cells) return;
+
+                    Object.entries(secObj.cells).forEach(([slotTime, cellValue]) => {
+                        if (!cellValue) return;
+
+                        // Skip slots already captured from faculty source
+                        // but DO add slots that are missing (ENG, CONST, ELECTIVE lines)
+                        if (!matchMap.has(slotTime)) {
+                            // Extract faculty code from cell value if present, e.g. "FOC (RAK) [SH3]"
+                            const facMatch = cellValue.match(/\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\)/);
+                            const facCode = facMatch ? facMatch[1] : '—';
+                            matchMap.set(slotTime, {
+                                slot: slotTime,
+                                rawContent: cellValue,
+                                subjectDetails: cellValue,
+                                faculty: facCode
+                            });
+                        }
+                    });
+                });
+            }
+
+            return Array.from(matchMap.values()).sort(compareScheduleItemsBySlot);
+        }
+
+        function renderDaySchedule(dayTargetKey) {
+            let actualDay = dayTargetKey;
+            if (dayTargetKey === 'today' || dayTargetKey === 'tomorrow') {
+                actualDay = resolveDayOfWeekName(dayTargetKey);
+            }
+
+            const displayCard = document.getElementById('timetable-display-card');
+            const titleIcon = document.getElementById('view-title-icon');
+            const titleText = document.getElementById('view-title');
+            const targetRenderArea = document.getElementById('timetable-render-target');
+
+            if (!displayCard || !targetRenderArea) return;
+
+            if (titleText) titleText.innerText = `${actualDay} Schedule - ${localSelectedSection}`;
+            if (titleIcon) titleIcon.innerHTML = `<i data-lucide="clock" class="w-5 h-5 text-blue-600"></i>`;
+            
+            if (actualDay === 'Sunday') {
+                targetRenderArea.innerHTML = `
+                    <div class="text-center py-8 text-slate-500 font-medium">
+                        <i data-lucide="sun" class="w-12 h-12 mx-auto text-amber-500 mb-2"></i>
+                        Sunday Holiday! No classes scheduled.
+                    </div>`;
+                displayCard.classList.remove('hidden');
+                lucide.createIcons();
+                return;
+            }
+
+            const activeClasses = getSectionScheduleForDay(actualDay, localSelectedSection).slice().sort(compareScheduleItemsBySlot);
+
+            if (activeClasses.length === 0) {
+                targetRenderArea.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        No scheduled classes discovered for section: ${localSelectedSection}.
+                    </div>`;
+            } else {
+                let htmlMatrix = `<div class="space-y-2 pt-1">`;
+                activeClasses.forEach(item => {
+                    const room = item.subjectDetails.match(/\[([^\]]+)\]/);
+                    const roomLabel = room ? `<span class="text-xs text-slate-400 font-medium ml-1">[${room[1]}]</span>` : '';
+                    htmlMatrix += `
+                        <div class="bg-gradient-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3">
+                            <div class="slot-badge bg-blue-100 text-blue-700 text-xs px-2 py-1.5 rounded-lg font-bold mt-0.5">
+                                ${item.slot}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-bold text-slate-900 text-sm leading-snug">${item.subjectDetails.replace(/\[.*?\]/g,'').trim()}${roomLabel}</h4>
+                                <p class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1">
+                                    <i data-lucide="user" class="w-3 h-3 shrink-0"></i>${getFacultyDisplay(item.faculty)}
+                                </p>
+                            </div>
+                        </div>`;
+                });
+                htmlMatrix += `</div>`;
+                targetRenderArea.innerHTML = htmlMatrix;
+            }
+
+            displayCard.classList.remove('hidden');
+            lucide.createIcons();
+            displayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function renderWholeWeek() {
+            const displayCard = document.getElementById('timetable-display-card');
+            const titleIcon = document.getElementById('view-title-icon');
+            const titleText = document.getElementById('view-title');
+            const targetRenderArea = document.getElementById('timetable-render-target');
+
+            if (!displayCard || !targetRenderArea) return;
+
+            if (titleText) titleText.innerText = `Weekly Overview - ${localSelectedSection}`;
+            if (titleIcon) titleIcon.innerHTML = `<i data-lucide="grid" class="w-5 h-5 text-amber-600"></i>`;
+
+            const operatingWeekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            let weekHTML = `<div class="space-y-3 pt-1 max-h-[60dvh] overflow-y-auto smooth-scroll pr-1">`;
+
+            operatingWeekdays.forEach(day => {
+                const dayClasses = getSectionScheduleForDay(day, localSelectedSection).slice().sort(compareScheduleItemsBySlot);
+                weekHTML += `
+                    <div class="border-b border-slate-100 pb-3 last:border-0">
+                        <h4 class="font-bold text-slate-900 text-sm bg-slate-100 px-3 py-1 rounded-md inline-block mb-2">${day}</h4>`;
+
+                if (dayClasses.length === 0) {
+                    weekHTML += `<p class="text-xs text-slate-400 pl-3">No classes registered.</p>`;
+                } else {
+                    weekHTML += `<div class="space-y-1.5 pl-1">`;
+                    dayClasses.forEach(c => {
+                        weekHTML += `
+                            <div class="bg-white border border-slate-200/60 rounded-lg p-2.5 flex items-start gap-2">
+                                <span class="slot-badge bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded font-bold shrink-0">${c.slot}</span>
+                                <div class="min-w-0">
+                                    <div class="font-semibold text-slate-800 text-xs leading-snug">${c.subjectDetails.replace(/\[.*?\]/g,'').trim()}</div>
+                                    <div class="text-slate-400 text-xs mt-0.5">${getFacultyDisplay(c.faculty)}</div>
+                                </div>
+                            </div>`;
+                    });
+                    weekHTML += `</div>`;
+                }
+                weekHTML += `</div>`;
+            });
+
+            weekHTML += `</div>`;
+            targetRenderArea.innerHTML = weekHTML;
+            displayCard.classList.remove('hidden');
+            lucide.createIcons();
+            displayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function scrollToAI() {
+            const aiSec = document.getElementById('ai-section');
+            if (aiSec) aiSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const inputField = document.getElementById('ai-user-input-field');
+            if (inputField) inputField.focus();
+        }
+
+        let speechRecognition = null;
+        let isVoiceListening = false;
+        let voiceRepliesEnabled = localStorage.getItem('ai_voice_replies') === '1';
+        let finalVoiceTranscript = '';
+
+        function initVoiceAssistant() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const micButton = document.getElementById('voice-input-button');
+            const replyButton = document.getElementById('voice-reply-button');
+
+            if (!SpeechRecognition) {
+                if (micButton) micButton.disabled = true;
+                setVoiceStatus('Voice input is not supported here. Use Chrome/Edge, allow microphone, and open from HTTPS/local preview.');
+            } else {
+                speechRecognition = new SpeechRecognition();
+                // en-US is the most reliable Web Speech recognition locale; it still understands Indian English well.
+                speechRecognition.lang = 'en-US';
+                speechRecognition.interimResults = true;
+                speechRecognition.continuous = false;
+                speechRecognition.maxAlternatives = 3;
+
+                speechRecognition.onstart = () => {
+                    finalVoiceTranscript = '';
+                    isVoiceListening = true;
+                    setVoiceButtonListening(true);
+                    setVoiceStatus('Listening now. Speak after tapping the mic.');
+                };
+
+                speechRecognition.onresult = (event) => {
+                    let interimTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const phrase = event.results[i][0]?.transcript || '';
+                        if (event.results[i].isFinal) {
+                            finalVoiceTranscript += phrase + ' ';
+                        } else {
+                            interimTranscript += phrase + ' ';
+                        }
+                    }
+
+                    const heardText = (finalVoiceTranscript || interimTranscript).trim();
+                    const inputField = document.getElementById('ai-user-input-field');
+                    if (inputField && heardText) {
+                        inputField.value = heardText;
+                        setVoiceStatus(`Heard: ${heardText}`);
+                    }
+                };
+
+                speechRecognition.onerror = (event) => {
+                    const error = event.error || 'unknown';
+                    const help = {
+                        'no-speech': 'No speech was detected. Tap mic, wait for Listening, then speak close to the phone.',
+                        'audio-capture': 'No microphone was found. Check mic permission and device microphone.',
+                        'not-allowed': 'Microphone permission was blocked. Allow microphone access in browser/site settings.',
+                        'service-not-allowed': 'Speech recognition service is blocked by this browser or network.',
+                        'network': 'Speech recognition needs internet/browser STT service. Check network or try Chrome/Edge.',
+                        'aborted': 'Listening was stopped.',
+                        'language-not-supported': 'Speech language is not supported by this browser.'
+                    };
+                    setVoiceStatus(help[error] || `Voice error: ${error}. Please type your question or try Chrome/Edge.`);
+                };
+
+                speechRecognition.onend = () => {
+                    isVoiceListening = false;
+                    setVoiceButtonListening(false);
+                    const finalText = finalVoiceTranscript.trim();
+                    if (finalText) {
+                        const inputField = document.getElementById('ai-user-input-field');
+                        if (inputField) inputField.value = finalText;
+                        handleAIQueryFormSubmit(null);
+                    }
+                };
+            }
+
+            if (!('speechSynthesis' in window) && replyButton) {
+                replyButton.disabled = true;
+            }
+            updateVoiceReplyButton();
+        }
+
+        async function ensureMicrophonePermission() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return true;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(track => track.stop());
+                return true;
+            } catch (error) {
+                setVoiceStatus('Microphone permission is blocked or unavailable. Allow microphone access, then try again.');
+                return false;
+            }
+        }
+
+        async function toggleVoiceInput() {
+            if (!speechRecognition) return;
+            if (isVoiceListening) {
+                speechRecognition.stop();
+            } else {
+                const allowed = await ensureMicrophonePermission();
+                if (!allowed) return;
+                try {
+                    window.speechSynthesis?.cancel();
+                    finalVoiceTranscript = '';
+                    speechRecognition.start();
+                } catch (error) {
+                    setVoiceStatus('Voice listener is already starting. Wait a moment and tap again.');
+                }
+            }
+        }
+
+        function toggleVoiceReplies() {
+            voiceRepliesEnabled = !voiceRepliesEnabled;
+            localStorage.setItem('ai_voice_replies', voiceRepliesEnabled ? '1' : '0');
+            updateVoiceReplyButton();
+            setVoiceStatus(voiceRepliesEnabled ? 'Spoken replies enabled.' : 'Spoken replies muted.');
+            if (!voiceRepliesEnabled) window.speechSynthesis?.cancel();
+        }
+
+        function updateVoiceReplyButton() {
+            const replyButton = document.getElementById('voice-reply-button');
+            if (!replyButton) return;
+            replyButton.classList.toggle('ring-2', voiceRepliesEnabled);
+            replyButton.classList.toggle('ring-amber-300', voiceRepliesEnabled);
+            replyButton.title = voiceRepliesEnabled ? 'Spoken replies on' : 'Spoken replies off';
+        }
+
+        function setVoiceButtonListening(active) {
+            const micButton = document.getElementById('voice-input-button');
+            if (!micButton) return;
+            micButton.classList.toggle('bg-rose-100', active);
+            micButton.classList.toggle('text-rose-700', active);
+            micButton.classList.toggle('ring-2', active);
+            micButton.classList.toggle('ring-rose-300', active);
+        }
+
+        function setVoiceStatus(message) {
+            const status = document.getElementById('voice-assistant-status');
+            if (status) status.innerText = message;
+        }
+
+        function expandFacultyCodesForSpeech(text) {
+            if (!timetableDatabase || !timetableDatabase.staffNames || !text) return text;
+            let expandedText = text;
+            Object.entries(timetableDatabase.staffNames)
+                .sort((a, b) => b[0].length - a[0].length)
+                .forEach(([code, name]) => {
+                    const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    expandedText = expandedText.replace(new RegExp(`\\b${escapedCode}\\b`, 'g'), name);
+                });
+            return expandedText;
+        }
+
+        function speakAssistantText(htmlText) {
+            if (!voiceRepliesEnabled || !('speechSynthesis' in window)) return;
+            const plainText = expandFacultyCodesForSpeech(htmlText
+                .replace(/<br\s*\/?>/gi, '. ')
+                .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
+                .replace(/<[^>]*>/g, ' ')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, 'and')
+                .replace(/—/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim());
+            if (!plainText) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(plainText);
+            utterance.lang = 'en-IN';
+            utterance.rate = 0.95;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function clearChatLog() {
+            const stream = document.getElementById('chat-stream-log');
+            if (stream) {
+                stream.innerHTML = `
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm max-w-[85%] self-start space-y-2">
+                        <p class="text-sm text-slate-700">Chat history cleared. Send a message to pull context data details:</p>
+                    </div>`;
+            }
+            lucide.createIcons();
+        }
+
+        function submitSuggestedQuery(queryText) {
+            const inputField = document.getElementById('ai-user-input-field');
+            if (inputField) {
+                inputField.value = queryText;
+                handleAIQueryFormSubmit(null);
+            }
+        }
+
+        function submitSpokenQuery(queryText) {
+            voiceRepliesEnabled = true;
+            localStorage.setItem('ai_voice_replies', '1');
+            updateVoiceReplyButton();
+            submitSuggestedQuery(queryText);
+        }
+
+        function handleAIQueryFormSubmit(event) {
+            if (event) event.preventDefault();
+            const fieldElement = document.getElementById('ai-user-input-field');
+            if (!fieldElement) return;
+            const cleanQuery = fieldElement.value.trim();
+            if (!cleanQuery) return;
+
+            appendMessageBubble(cleanQuery, 'user');
+            fieldElement.value = '';
+            processAIQueryEngine(cleanQuery);
+        }
+
+        function appendMessageBubble(messageText, directionalRole, cardsHTML = '') {
+            const logContainer = document.getElementById('chat-stream-log');
+            if (!logContainer) return;
+            const bubbleWrapper = document.createElement('div');
+            
+            if (directionalRole === 'user') {
+                bubbleWrapper.className = "bg-blue-600 text-white p-3.5 rounded-2xl shadow-sm max-w-[85%] self-end font-medium text-sm";
+                bubbleWrapper.innerText = messageText;
+            } else {
+                bubbleWrapper.className = "bg-white border border-slate-200/80 p-4 rounded-2xl shadow-sm max-w-[90%] self-start space-y-2";
+                bubbleWrapper.innerHTML = `
+                    <div class="text-sm text-slate-800 leading-relaxed">${messageText}</div>
+                    ${cardsHTML ? `<div class="pt-2 w-full">${cardsHTML}</div>` : ''}`;
+            }
+
+            logContainer.appendChild(bubbleWrapper);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            lucide.createIcons();
+            if (directionalRole !== 'user') speakAssistantText(`${messageText} ${cardsHTML || ''}`);
+        }
+
+        // ── Helper: extract room from a cell value string ──────────────────────
+        function extractRoom(str) {
+            const m = str.match(/\[([^\]]+)\]/);
+            return m ? m[1] : null;
+        }
+
+        // ── Helper: extract subject keyword from cell value ─────────────────────
+        function extractSubject(str) {
+            // Cell values look like "DBMS (AA) [LH6]" or "DBMS LAB [Lab4]" or "ENG [LH4]"
+            return str.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+        }
+
+        // ── Helper: get full staff name ─────────────────────────────────────────
+        function getStaffName(code) {
+            const cleanCode = (code || '').trim();
+            if (!timetableDatabase || !timetableDatabase.staffNames) return cleanCode;
+            return timetableDatabase.staffNames[cleanCode] || cleanCode;
+        }
+
+        function getFacultyDisplay(facultyCodes) {
+            if (!facultyCodes || facultyCodes === '—') return '—';
+            return facultyCodes
+                .split(/\s*\+\s*/)
+                .map(code => getStaffName(code.trim()))
+                .filter(Boolean)
+                .join(' + ');
+        }
+
+        // ── Helper: build a single class card HTML ──────────────────────────────
+        function buildClassCard(item, color) {
+            const c = color || 'blue';
+            const room = extractRoom(item.subjectDetails) || extractRoom(item.rawContent || '') || '—';
+            const subject = extractSubject(item.subjectDetails);
+            const staffDisplay = item.faculty === '—' ? '' : `<span class="text-slate-400 block mt-1">Faculty: ${getFacultyDisplay(item.faculty)}</span>`;
+            return `
+                <div class="bg-${c}-50 border border-${c}-200 p-3 rounded-xl text-xs space-y-0.5">
+                    <div class="font-bold text-${c}-700 text-sm">${item.slot}</div>
+                    <div class="font-bold text-slate-900">${subject}</div>
+                    <div class="text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> Room: ${room}</div>
+                    ${staffDisplay}
+                </div>`;
+        }
+
+        // ── Helper: build a list of class cards HTML ────────────────────────────
+        function buildCardList(items, color) {
+            let html = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">`;
+            items.slice().sort(compareScheduleItemsBySlot).forEach(item => { html += buildClassCard(item, color); });
+            html += `</div>`;
+            return html;
+        }
+
+        // ── Helper: find classes matching a subject keyword across all days ─────
+        function findSubjectAcrossWeek(keyword) {
+            const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const results = [];
+            days.forEach(d => {
+                getSectionScheduleForDay(d, localSelectedSection).forEach(h => {
+                    if (extractSubject(h.subjectDetails).toLowerCase().includes(keyword) ||
+                        (h.rawContent || '').toLowerCase().includes(keyword)) {
+                        results.push({ ...h, day: d });
+                    }
+                });
+            });
+            return results;
+        }
+
+        function processAIQueryEngine(rawInputText) {
+            const q = rawInputText.toLowerCase()
+                .replace(/[.,\/#!$%\^&\*;:{}={}`~()\?]/g, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+
+            const fail = "Sorry, I could not find that in the timetable. Try asking about a subject name, time slot, day, or room.";
+
+            if (!timetableDatabase) { appendMessageBubble(fail, 'ai'); return; }
+
+            const todayName  = resolveDayOfWeekName('today');
+            const tomorrowName = resolveDayOfWeekName('tomorrow');
+
+            // ── Whole week ──────────────────────────────────────────────────────
+            if (q.match(/whole week|weekly|all days|full timetable|full schedule/)) {
+                const wDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                let html = `<div class="space-y-3 max-h-[320px] overflow-y-auto pr-1">`;
+                let total = 0;
+                wDays.forEach(d => {
+                    const hits = getSectionScheduleForDay(d, localSelectedSection);
+                    if (!hits.length) return;
+                    total += hits.length;
+                    html += `<div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                        <span class="font-bold text-xs text-slate-900 bg-slate-200 px-2 py-0.5 rounded">${d}</span>
+                        <div class="mt-1.5 space-y-1">`;
+                    hits.forEach(h => {
+                        const room = extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—';
+                        const subj = extractSubject(h.subjectDetails);
+                        html += `<div class="text-xs text-slate-700">• <b>${h.slot}</b>: ${subj} <span class="text-slate-400">[${room}]</span> <span class="text-slate-400">(${getFacultyDisplay(h.faculty)})</span></div>`;
+                    });
+                    html += `</div></div>`;
+                });
+                html += `</div>`;
+                appendMessageBubble(total > 0 ? `Weekly timetable for <b>${localSelectedSection}</b>:` : fail, 'ai', total > 0 ? html : '');
+                return;
+            }
+
+            const explicitDayKeywords = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            let targetedDayKeyword = '';
+            explicitDayKeywords.forEach(day => {
+                if (q.includes(day)) targetedDayKeyword = day.charAt(0).toUpperCase() + day.slice(1);
+            });
+            // also handle "today" / "tomorrow"
+            if (q.match(/\btoday\b/) && !targetedDayKeyword) targetedDayKeyword = todayName;
+            if (q.match(/\btomorrow\b/) && !targetedDayKeyword) targetedDayKeyword = tomorrowName;
+
+            // ── Count of classes on a day ────────────────────────────────────────
+            if (targetedDayKeyword && q.match(/how many|count|number of|total class/)) {
+                if (targetedDayKeyword === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const cnt = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                appendMessageBubble(`You have <b>${cnt.length}</b> class${cnt.length !== 1 ? 'es' : ''} on <b>${targetedDayKeyword}</b> for section <b>${localSelectedSection}</b>.`, 'ai');
+                return;
+            }
+
+            // ── Last class of a day ──────────────────────────────────────────────
+            if (q.match(/last class/) && targetedDayKeyword) {
+                if (targetedDayKeyword === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                if (!list.length) { appendMessageBubble(`No classes found for <b>${targetedDayKeyword}</b>.`, 'ai'); return; }
+                const last = list[list.length - 1];
+                appendMessageBubble(`Your last class on <b>${targetedDayKeyword}</b> is:`, 'ai', buildClassCard(last, 'slate'));
+                return;
+            }
+
+            // ── First class (any day or today) ───────────────────────────────────
+            if (q.match(/first class|first period|first lecture/)) {
+                const day = targetedDayKeyword || todayName;
+                if (day === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(day, localSelectedSection);
+                if (!list.length) { appendMessageBubble(`No classes found for <b>${day}</b>.`, 'ai'); return; }
+                appendMessageBubble(`First class on <b>${day}</b>:`, 'ai', buildClassCard(list[0], 'blue'));
+                return;
+            }
+
+            // ── Next class (right now) ───────────────────────────────────────────
+            if (q.match(/next class|upcoming class|current class/)) {
+                if (todayName === 'Sunday') { appendMessageBubble("Today is Sunday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(todayName, localSelectedSection);
+                const now = new Date().getHours() * 60 + new Date().getMinutes();
+                const ongoing = list.find(c => {
+                    const start = parseSlotTimeToMinutes(c.slot);
+                    const parts = c.slot.replace(/\(.*?\)/g,'').split('-');
+                    const endStr = parts[1] ? parts[1].trim() : '';
+                    let [eh, em] = endStr.split(/[:.]/).map(Number);
+                    if (eh >= 1 && eh <= 7) eh += 12;
+                    const end = eh * 60 + (em || 0);
+                    return now >= start && now < end;
+                });
+                if (ongoing) {
+                    appendMessageBubble(`Your <b>current ongoing class</b> is:`, 'ai', buildClassCard(ongoing, 'emerald'));
+                    return;
+                }
+                const next = list.find(c => parseSlotTimeToMinutes(c.slot) > now);
+                if (next) {
+                    appendMessageBubble(`Your <b>next class</b> today is:`, 'ai', buildClassCard(next, 'emerald'));
+                } else {
+                    appendMessageBubble("All classes for today are done! 🎉", 'ai');
+                }
+                return;
+            }
+
+            // ── Free time / no-class query ───────────────────────────────────────
+            if (q.match(/free|break|gap|no class|off period/) && targetedDayKeyword) {
+                if (targetedDayKeyword === 'Sunday') { appendMessageBubble('Sunday is a holiday — no classes.', 'ai'); return; }
+                const list = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                if (!list.length) { appendMessageBubble(`No classes found for <b>${targetedDayKeyword}</b>.`, 'ai'); return; }
+                appendMessageBubble(`Classes found for <b>${targetedDayKeyword}</b>. Free gaps are the spaces between these slots:`, 'ai', buildCardList(list, 'emerald'));
+                return;
+            }
+
+            // ── Schedule for a specific day ──────────────────────────────────────
+            if (targetedDayKeyword || q.match(/timetable|schedule|classes today|today classes/)) {
+                if (!targetedDayKeyword) targetedDayKeyword = todayName;
+                if (targetedDayKeyword === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                if (!list.length) { appendMessageBubble(`No classes found for <b>${targetedDayKeyword}</b> (${localSelectedSection}).`, 'ai'); return; }
+                appendMessageBubble(`Schedule for <b>${targetedDayKeyword}</b> — ${localSelectedSection}:`, 'ai', buildCardList(list, 'blue'));
+                return;
+            }
+
+            // ── What class is at a specific time ────────────────────────────────
+            // e.g. "what class at 11", "class at 9", "what is at 2:15"
+            const timeMatch = q.match(/\bat\s+(\d{1,2})[:\.]?(\d{0,2})/);
+            if (timeMatch) {
+                let qh = parseInt(timeMatch[1]);
+                let qm = parseInt(timeMatch[2] || '0') || 0;
+                if (qh >= 1 && qh <= 7) qh += 12; // afternoon
+                const qMins = qh * 60 + qm;
+                const checkDay = targetedDayKeyword || todayName;
+                if (checkDay === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(checkDay, localSelectedSection);
+                // find the slot whose start ≤ qMins < end
+                const match = list.find(c => {
+                    const start = parseSlotTimeToMinutes(c.slot);
+                    const parts = c.slot.replace(/\(.*?\)/g,'').split('-');
+                    const endStr = parts[1] ? parts[1].trim() : '';
+                    let [eh, em] = endStr.split(/[:.]/).map(Number);
+                    if (eh >= 1 && eh <= 7) eh += 12;
+                    const end = eh * 60 + (em || 0);
+                    return qMins >= start && qMins < end;
+                }) || list.find(c => parseSlotTimeToMinutes(c.slot) === qMins);
+                if (match) {
+                    appendMessageBubble(`Class at <b>${timeMatch[0].replace('at ','')}</b> on <b>${checkDay}</b>:`, 'ai', buildClassCard(match, 'purple'));
+                } else {
+                    appendMessageBubble(`No class found at that time on <b>${checkDay}</b> for ${localSelectedSection}.`, 'ai');
+                }
+                return;
+            }
+
+            // ── Room / where is a class ─────────────────────────────────────────
+            // e.g. "where is dbms", "room for python", "which room for web"
+            if (q.match(/where is|which room|room for|in which room|location of/)) {
+                const kw = q.replace(/where is|which room|room for|in which room|location of|class|the|my/g, '').trim();
+                const hits = findSubjectAcrossWeek(kw);
+                if (hits.length) {
+                    const rooms = [...new Set(hits.map(h => extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—').filter(r => r !== '—'))];
+                    appendMessageBubble(
+                        rooms.length
+                            ? `<b>${kw.toUpperCase()}</b> classes are held in: <b>${rooms.join(', ')}</b>`
+                            : `Found <b>${kw.toUpperCase()}</b> in your schedule but no room info is available.`,
+                        'ai'
+                    );
+                } else {
+                    appendMessageBubble(`Could not find <b>${kw.toUpperCase()}</b> in your schedule.`, 'ai');
+                }
+                return;
+            }
+
+            // ── Who teaches ─────────────────────────────────────────────────────
+            // e.g. "who teaches dbms", "who is the teacher for web"
+            if (q.match(/who teach|who is.*teacher|faculty of|instructor of|staff for/)) {
+                const kw = q.replace(/who teach(es|er)?|who is (the )?teacher|faculty of|instructor of|staff for|for|the|my/g, '').trim();
+                const hits = findSubjectAcrossWeek(kw);
+                if (hits.length) {
+                    const facultyMap = {};
+                    hits.forEach(h => {
+                        if (h.faculty && h.faculty !== '—') {
+                            h.faculty.split(/\s*\+\s*/).forEach(f => {
+                                const name = getStaffName(f.trim());
+                                facultyMap[f.trim()] = name;
+                            });
+                        }
+                    });
+                    const entries = Object.entries(facultyMap);
+                    if (entries.length) {
+                        const list = entries.map(([, name]) => `<b>${name}</b>`).join(', ');
+                        appendMessageBubble(`<b>${kw.toUpperCase()}</b> is taught by: ${list}`, 'ai');
+                    } else {
+                        appendMessageBubble(`Found <b>${kw.toUpperCase()}</b> in your schedule but faculty info is not available.`, 'ai');
+                    }
+                } else {
+                    appendMessageBubble(`Could not find <b>${kw.toUpperCase()}</b> in your schedule.`, 'ai');
+                }
+                return;
+            }
+
+            // ── When is a subject / subject schedule ─────────────────────────────
+            // e.g. "when is dbms", "dbms schedule", "show python classes"
+            {
+                // Try to match any word in the query against subject names in the timetable
+                const allSubjects = new Set();
+                ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].forEach(d => {
+                    getSectionScheduleForDay(d, localSelectedSection).forEach(h => {
+                        allSubjects.add(extractSubject(h.subjectDetails).toLowerCase());
+                    });
+                });
+
+                let matchedKw = '';
+                // Check each word/phrase in the query against known subjects
+                const words = q.split(' ').filter(w => w.length > 1);
+                for (const word of words) {
+                    for (const subj of allSubjects) {
+                        if (subj.includes(word) || word.includes(subj.split(' ')[0])) {
+                            matchedKw = word; break;
+                        }
+                    }
+                    if (matchedKw) break;
+                }
+
+                if (matchedKw) {
+                    const hits = findSubjectAcrossWeek(matchedKw);
+                    if (hits.length) {
+                        let html = `<div class="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">`;
+                        hits.forEach(h => {
+                            const room = extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—';
+                            const subj = extractSubject(h.subjectDetails);
+                            const staffName = h.faculty !== '—' ? getStaffName(h.faculty.split('+')[0].trim()) : '';
+                            html += `<div class="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs">
+                                <span class="font-bold text-blue-700">${h.day}</span> &nbsp;
+                                <span class="font-bold text-slate-700">${h.slot}</span> &nbsp;
+                                <span class="text-slate-600">${subj}</span> &nbsp;
+                                <span class="text-slate-400">[${room}]</span>
+                                ${staffName ? `<span class="text-slate-400 block mt-0.5">Faculty: ${staffName} (${h.faculty})</span>` : ''}
+                            </div>`;
+                        });
+                        html += `</div>`;
+                        appendMessageBubble(`Schedule for <b>${matchedKw.toUpperCase()}</b> (${localSelectedSection}):`, 'ai', html);
+                        return;
+                    }
+                }
+            }
+
+            // ── Fallback ─────────────────────────────────────────────────────────
+            appendMessageBubble(fail, 'ai');
+        }
+    
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
