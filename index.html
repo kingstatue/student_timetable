@@ -554,6 +554,7 @@
             localSelectedSection = section;
             localStorage.setItem('student_selected_section', section);
             updateUIPerferenceBadges();
+            clearChatLog();
             hideSectionPickerModal();
             closeTimetableView();
         }
@@ -567,6 +568,7 @@
             localStorage.removeItem('student_selected_section');
             localSelectedSection = '';
             closeTimetableView();
+            clearChatLog();
             showLoginScreen();
         }
 
@@ -1320,6 +1322,7 @@
 
             stopAssistantSpeech();
             clearChatForSingleAnswer();
+            closeTimetableView();
             fieldElement.value = '';
             processAIQueryEngine(cleanQuery);
         }
