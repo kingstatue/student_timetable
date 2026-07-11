@@ -48,6 +48,31 @@
             white-space: nowrap;
             flex-shrink: 0;
         }
+        .assistant-composer {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        .assistant-composer input {
+            min-width: 0;
+        }
+        .assistant-icon-button {
+            width: 44px;
+            min-width: 44px;
+            height: 44px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        @media (max-width: 380px) {
+            .assistant-composer { gap: 0.375rem; }
+            .assistant-icon-button {
+                width: 42px;
+                min-width: 42px;
+            }
+        }
         /* Smooth scroll for iOS */
         .smooth-scroll { -webkit-overflow-scrolling: touch; }
     </style>
@@ -158,7 +183,6 @@
         </div>
 
         <section class="glass-panel rounded-2xl p-3 shadow-sm">
-            <!-- Row 1: Today, Tomorrow, Day picker -->
             <div class="grid grid-cols-3 gap-2 mb-2">
                 <button onclick="renderDaySchedule('today')" class="flex flex-col items-center justify-center py-3 px-2 bg-blue-50 active:bg-blue-100 text-blue-700 rounded-xl transition border border-blue-100">
                     <i data-lucide="calendar-days" class="w-5 h-5 mb-1"></i>
@@ -168,32 +192,15 @@
                     <i data-lucide="calendar-range" class="w-5 h-5 mb-1"></i>
                     <span class="text-xs font-semibold">Tomorrow</span>
                 </button>
-                <div class="relative">
-                    <select id="day-selector" onchange="renderDaySchedule(this.value)" class="w-full h-full appearance-none flex flex-col items-center text-center justify-center py-3 px-2 bg-purple-50 active:bg-purple-100 text-purple-700 rounded-xl transition border border-purple-100 font-semibold text-xs focus:outline-none cursor-pointer">
-                        <option value="" disabled selected>Pick Day</option>
-                        <option value="Monday">Monday</option>
-                        <option value="Tuesday">Tuesday</option>
-                        <option value="Wednesday">Wednesday</option>
-                        <option value="Thursday">Thursday</option>
-                        <option value="Friday">Friday</option>
-                        <option value="Saturday">Saturday</option>
-                    </select>
-                    <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-purple-500">
-                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
-                    </div>
-                </div>
-            </div>
-            <!-- Row 2: Whole Week, Ask AI -->
-            <div class="grid grid-cols-2 gap-2">
                 <button onclick="renderWholeWeek()" class="flex flex-col items-center justify-center py-3 bg-amber-50 active:bg-amber-100 text-amber-700 rounded-xl transition border border-amber-100">
                     <i data-lucide="table" class="w-5 h-5 mb-1"></i>
                     <span class="text-xs font-semibold">Whole Week</span>
                 </button>
-                <button onclick="scrollToAI()" class="flex flex-col items-center justify-center py-3 bg-indigo-600 active:bg-indigo-700 text-white rounded-xl transition border border-indigo-700 shadow-md shadow-indigo-100">
-                    <i data-lucide="bot" class="w-5 h-5 mb-1"></i>
-                    <span class="text-xs font-semibold">Ask AI</span>
-                </button>
             </div>
+            <button onclick="scrollToAI()" class="w-full flex items-center justify-center gap-2 py-3 bg-indigo-600 active:bg-indigo-700 text-white rounded-xl transition border border-indigo-700 shadow-md shadow-indigo-100">
+                <i data-lucide="bot" class="w-5 h-5"></i>
+                <span class="text-xs font-semibold">Ask Timetable Assistant</span>
+            </button>
         </section>
 
         <section id="timetable-display-card" class="glass-panel rounded-2xl p-4 shadow-sm hidden">
@@ -213,18 +220,33 @@
         </section>
 
         <section id="ai-section" class="glass-panel rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col">
-            <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                    <div class="flex items-center space-x-1.5">
-                        <i data-lucide="bot" class="w-5 h-5 text-indigo-400"></i>
-                        <span class="font-bold tracking-wide text-sm text-slate-100">Timetable AI Assistant</span>
+            <div class="bg-slate-900 text-white p-4 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center space-x-3 min-w-0">
+                        <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></div>
+                        <div class="flex items-center space-x-1.5 min-w-0">
+                            <i data-lucide="bot" class="w-5 h-5 text-indigo-400 shrink-0"></i>
+                            <span class="font-bold tracking-wide text-sm text-slate-100 truncate">Timetable AI Assistant</span>
+                        </div>
                     </div>
+                    <button onclick="clearChatLog()" aria-label="Clear chat" class="shrink-0 text-xs bg-slate-800 active:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition flex items-center space-x-1 border border-slate-700">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Clear Chat</span>
+                    </button>
                 </div>
-                <button onclick="clearChatLog()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg transition flex items-center space-x-1 border border-slate-700">
-                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                    <span>Clear Chat</span>
-                </button>
+                <form id="ai-input-form" onsubmit="handleAIQueryFormSubmit(event)" class="assistant-composer rounded-2xl bg-white/10 border border-white/10 p-1.5 shadow-inner">
+                    <button type="button" id="voice-input-button" onclick="toggleVoiceInput()" aria-label="Ask by voice" class="assistant-icon-button bg-emerald-50 active:bg-emerald-100 text-emerald-700 rounded-xl transition border border-emerald-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="mic" class="w-5 h-5"></i>
+                    </button>
+                    <input type="text" id="ai-user-input-field" inputmode="text" placeholder="Ask next class..." autocomplete="off" class="min-w-0 flex-1 h-11 px-3 bg-white text-slate-900 border border-white/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm transition placeholder:text-slate-400" style="font-size: 16px">
+                    <button type="button" id="voice-reply-button" onclick="toggleVoiceReplies()" aria-label="Toggle spoken replies" class="assistant-icon-button bg-amber-50 active:bg-amber-100 text-amber-700 rounded-xl transition border border-amber-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="volume-2" class="w-5 h-5"></i>
+                    </button>
+                    <button type="submit" aria-label="Send message" class="assistant-icon-button bg-blue-600 active:bg-blue-700 text-white rounded-xl transition shadow-md shadow-blue-950/30 shrink-0">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </form>
+                <p id="voice-assistant-status" class="text-[11px] text-slate-300 px-1">Voice input is available on supported browsers.</p>
             </div>
 
             <div id="chat-stream-log" class="chat-stream chat-height smooth-scroll p-4 overflow-y-auto space-y-3 bg-slate-50/50 flex flex-col">
@@ -233,39 +255,65 @@
                         Hello! I'm your timetable assistant. You can ask me things like:
                     </p>
                     <div class="grid grid-cols-2 gap-1.5 pt-1 text-xs text-blue-600">
-                        <button onclick="submitSpokenQuery('Show today timetable')" class="text-left bg-amber-50 active:bg-amber-100 p-2.5 rounded-lg border border-amber-100 font-medium leading-snug text-amber-700">Announce today</button>
-                        <button onclick="submitSpokenQuery('What is my first class today?')" class="text-left bg-amber-50 active:bg-amber-100 p-2.5 rounded-lg border border-amber-100 font-medium leading-snug text-amber-700">Announce first</button>
-                        <button onclick="submitSuggestedQuery('What is my first class today?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">First class today?</button>
-                        <button onclick="submitSuggestedQuery('What is my next class?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Next class?</button>
-                        <button onclick="submitSuggestedQuery('What class is at 11 today?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 11 today?</button>
-                        <button onclick="submitSuggestedQuery('Where is DBMS class?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Where is DBMS?</button>
-                        <button onclick="submitSuggestedQuery('Who teaches DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Who teaches DBMS?</button>
-                        <button onclick="submitSuggestedQuery('Show whole week timetable')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Whole week?</button>
+                        <button onclick="submitSuggestedQuery('Show Monday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Monday classes</button>
+                        <button onclick="submitSuggestedQuery('Show Tuesday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Tuesday classes</button>
+                        <button onclick="submitSuggestedQuery('Show Wednesday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Wednesday classes</button>
+                        <button onclick="submitSuggestedQuery('Show Thursday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Thursday classes</button>
+                        <button onclick="submitSuggestedQuery('Show Friday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Friday classes</button>
+                        <button onclick="submitSuggestedQuery('Show Saturday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Saturday classes</button>
+                        <button onclick="submitSuggestedQuery('What class is at 11?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 11?</button>
+                        <button onclick="submitSuggestedQuery('What class is at 2.20?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 2.20?</button>
+                        <button onclick="submitSuggestedQuery('Who teaches DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Who teaches subject?</button>
+                        <button onclick="submitSuggestedQuery('When is DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">When is subject?</button>
                     </div>
                 </div>
             </div>
 
-            <div class="p-3 bg-white border-t border-slate-200" style="padding-bottom: max(0.75rem, env(safe-area-inset-bottom))">
-                <form id="ai-input-form" onsubmit="handleAIQueryFormSubmit(event)" class="flex items-center gap-2">
-                    <button type="button" id="voice-input-button" onclick="toggleVoiceInput()" aria-label="Ask by voice" class="bg-emerald-50 active:bg-emerald-100 text-emerald-700 p-3.5 rounded-xl transition border border-emerald-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
-                        <i data-lucide="mic" class="w-5 h-5"></i>
-                    </button>
-                    <input type="text" id="ai-user-input-field" inputmode="text" placeholder="Ask: next class, who teaches CN..." autocomplete="off" class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm transition" style="font-size: 16px">
-                    <button type="button" id="voice-reply-button" onclick="toggleVoiceReplies()" aria-label="Toggle spoken replies" class="bg-amber-50 active:bg-amber-100 text-amber-700 p-3.5 rounded-xl transition border border-amber-100 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
-                        <i data-lucide="volume-2" class="w-5 h-5"></i>
-                    </button>
-                    <button type="submit" class="bg-blue-600 active:bg-blue-700 text-white p-3.5 rounded-xl transition shadow-md shadow-blue-100 shrink-0">
-                        <i data-lucide="send" class="w-5 h-5"></i>
-                    </button>
-                </form>
-                <p id="voice-assistant-status" class="text-[11px] text-slate-400 mt-2 px-1">Voice input is available on supported browsers.</p>
-            </div>
         </section>
 
     </main>
 
     <script>
         let timetableDatabase = null;
+        const DEFAULT_SUBJECT_SPEECH_MAP = {
+            "COMP.MATHS": "computational maths",
+            "CONST": "constitution",
+            "DISC.MATHS": "discrete maths",
+            "ENG": "english",
+            "FOC": "foc",
+            "FOC LAB": "foc lab",
+            "HND": "hindi",
+            "KAN": "kannada",
+            "PROG in C": "programming in C",
+            "C LAB": "C LAB",
+            "SANS": "sanskrith",
+            "C#": "C sharp",
+            "C# LAB": "c sharp lab",
+            "CN": "cn",
+            "DBMS": "DBMS",
+            "DBMS LAB": "dbms lab",
+            "DEVOPS": "devops",
+            "OST": "O.S.T",
+            "wcms": "W.C.M.S",
+            "CLOUD": "cloud",
+            "CRYPT": "cryptography",
+            "DAA": "D.A.A",
+            "DAA LAB": "D.A.A LAB",
+            "R LAB": "R lab",
+            "R PROG": "R programming",
+            "SE": "S.E.",
+            "WEB": "web",
+            "WEB LAB": "web lab",
+            "F_C": "fOC and C",
+            "F_C LAB": "C programming lab",
+            "COA_EL": "C.O.A",
+            "JAVA": "java lab",
+            "JAVA LAB": "java lab",
+            "OS": "oO.S.",
+            "PY_OS LAB": "python and Linux lab",
+            "PYTHON": "python"
+        };
+        let subjectSpeechMap = normalizeSubjectSpeechMap(DEFAULT_SUBJECT_SPEECH_MAP);
         let registeredSections = [];
         let localSelectedSection = '';
 
@@ -424,6 +472,7 @@
                 const response = await fetch('timetable.json', { cache: 'no-store' });
                 if (!response.ok) throw new Error("Could not retrieve JSON database.");
                 timetableDatabase = await response.json();
+                await loadSubjectSpeechMap();
                 if (timetableDatabase.college) {
                     document.getElementById('college-name').innerText = timetableDatabase.college;
                 }
@@ -432,6 +481,57 @@
             } catch (error) {
                 console.error("Critical failure bootstrapping database system parameters:", error);
             }
+        }
+
+        async function loadSubjectSpeechMap() {
+            const candidateFiles = ['subject.json', 'subject.JSON'];
+            for (const fileName of candidateFiles) {
+                try {
+                    const response = await fetch(fileName, { cache: 'no-store' });
+                    if (!response.ok) continue;
+                    const fileText = await response.text();
+                    let parsed = null;
+                    try {
+                        parsed = JSON.parse(fileText);
+                    } catch (jsonError) {
+                        parsed = parsePlainSubjectMap(fileText);
+                    }
+                    subjectSpeechMap = {
+                        ...normalizeSubjectSpeechMap(DEFAULT_SUBJECT_SPEECH_MAP),
+                        ...normalizeSubjectSpeechMap(parsed)
+                    };
+                    return;
+                } catch (error) {
+                    // Keep timetable working even if the optional subject map is missing.
+                }
+            }
+            subjectSpeechMap = normalizeSubjectSpeechMap(DEFAULT_SUBJECT_SPEECH_MAP);
+        }
+
+        function parsePlainSubjectMap(fileText) {
+            const parsedMap = {};
+            String(fileText || '').split(/\r?\n/).forEach(line => {
+                const cleanLine = line.trim();
+                if (!cleanLine) return;
+                let parts = cleanLine.split(/\t+/);
+                if (parts.length < 2) parts = cleanLine.split(/\s{2,}/);
+                if (parts.length < 2) return;
+                const code = parts.shift().trim();
+                const spokenName = parts.join(' ').trim();
+                if (code && spokenName) parsedMap[code] = spokenName;
+            });
+            return parsedMap;
+        }
+
+        function normalizeSubjectSpeechMap(rawData) {
+            const rawMap = rawData && rawData.subjects ? rawData.subjects : rawData;
+            const normalizedMap = {};
+            Object.entries(rawMap || {}).forEach(([code, spokenName]) => {
+                const cleanCode = String(code || '').trim();
+                const cleanName = String(spokenName || '').trim();
+                if (cleanCode && cleanName) normalizedMap[cleanCode.toUpperCase()] = cleanName;
+            });
+            return normalizedMap;
         }
 
         // ── PIN storage helpers ──────────────────────────────────────────────
@@ -644,6 +744,74 @@
                 .trim();
         }
 
+        function normalizeSubjectKey(subjectText) {
+            return String(subjectText || '')
+                .replace(/\([^)]*\)/g, ' ')
+                .replace(/\[[^\]]*\]/g, ' ')
+                .replace(/[^A-Za-z0-9#_.+]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toUpperCase();
+        }
+
+        function parseSubjectRoomEntries(str) {
+            const entries = [];
+            const text = String(str || '').replace(/\r/g, '\n');
+            const pattern = /([A-Za-z0-9#_.+\s]+?)(?:\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\))?\s*\[([^\]]+)\]/g;
+            let match;
+            while ((match = pattern.exec(text)) !== null) {
+                const subject = match[1]
+                    .replace(/\n+/g, ' ')
+                    .replace(/^[\s,;/|.-]+|[\s,;/|.-]+$/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                const faculty = (match[2] || '').trim();
+                const room = (match[3] || '').trim();
+                if (subject) {
+                    entries.push({
+                        subject,
+                        subjectKey: normalizeSubjectKey(subject),
+                        faculty,
+                        room
+                    });
+                }
+            }
+            return entries;
+        }
+
+        function buildSubjectFacultyMap(subjectDetails, facultyCode) {
+            const map = {};
+            const faculty = facultyCode && facultyCode !== '—' ? String(facultyCode).trim() : '';
+            const entries = parseSubjectRoomEntries(subjectDetails);
+            if (entries.length) {
+                entries.forEach(entry => {
+                    const entryFaculty = entry.faculty || faculty;
+                    if (entry.subjectKey && entryFaculty) map[entry.subjectKey] = entryFaculty;
+                });
+            } else {
+                const subjectKey = normalizeSubjectKey(subjectDetails);
+                if (subjectKey && faculty) map[subjectKey] = faculty;
+            }
+            return map;
+        }
+
+        function mergeSubjectFacultyMaps(targetMap, sourceMap) {
+            const merged = { ...(targetMap || {}) };
+            Object.entries(sourceMap || {}).forEach(([subjectKey, facultyCodes]) => {
+                if (!subjectKey || !facultyCodes) return;
+                if (!merged[subjectKey]) {
+                    merged[subjectKey] = facultyCodes;
+                } else {
+                    String(facultyCodes).split(/\s*\+\s*/).forEach(code => {
+                        if (code && !merged[subjectKey].split(/\s*\+\s*/).includes(code)) {
+                            merged[subjectKey] += ' + ' + code;
+                        }
+                    });
+                }
+            });
+            return merged;
+        }
+
         /**
          * ROBUST DATA FILTERING
          * Pulls data from BOTH faculty entries AND the daywise section cells
@@ -684,7 +852,8 @@
                                     slot: slotTime,
                                     rawContent: cellValue,
                                     subjectDetails: subjectRoomInfo,
-                                    faculty: facultyCode
+                                    faculty: facultyCode,
+                                    subjectFacultyMap: buildSubjectFacultyMap(subjectRoomInfo, facultyCode)
                                 });
                             } else {
                                 // If another faculty teaches the same slot, append faculty code
@@ -692,6 +861,11 @@
                                 if (!existing.faculty.includes(facultyCode)) {
                                     existing.faculty += ' + ' + facultyCode;
                                 }
+                                existing.rawContent = `${existing.rawContent || ''}\n${cellValue}`.trim();
+                                existing.subjectFacultyMap = mergeSubjectFacultyMaps(
+                                    existing.subjectFacultyMap,
+                                    buildSubjectFacultyMap(subjectRoomInfo, facultyCode)
+                                );
                             }
                         }
                     });
@@ -716,16 +890,30 @@
 
                         // Skip slots already captured from faculty source
                         // but DO add slots that are missing (ENG, CONST, ELECTIVE lines)
+                        // Extract faculty code from cell value if present, e.g. "FOC (RAK) [SH3]"
+                        const facMatch = cellValue.match(/\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\)/);
+                        const facCode = facMatch ? facMatch[1] : '—';
                         if (!matchMap.has(slotTime)) {
-                            // Extract faculty code from cell value if present, e.g. "FOC (RAK) [SH3]"
-                            const facMatch = cellValue.match(/\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\)/);
-                            const facCode = facMatch ? facMatch[1] : '—';
                             matchMap.set(slotTime, {
                                 slot: slotTime,
                                 rawContent: cellValue,
                                 subjectDetails: cellValue,
-                                faculty: facCode
+                                faculty: facCode,
+                                subjectFacultyMap: buildSubjectFacultyMap(cellValue, facCode)
                             });
+                        } else {
+                            // Daywise cells can contain richer elective room details like
+                            // SANS [SH1], KAN [LH3], HND [SH4]. Keep the faculty source,
+                            // but prefer the more detailed daywise subject/room display.
+                            const existing = matchMap.get(slotTime);
+                            if (countRoomMarkers(cellValue) > countRoomMarkers(existing.subjectDetails || '')) {
+                                existing.rawContent = `${existing.rawContent || ''}\n${cellValue}`.trim();
+                                existing.subjectDetails = cellValue;
+                            }
+                            existing.subjectFacultyMap = mergeSubjectFacultyMaps(
+                                existing.subjectFacultyMap,
+                                buildSubjectFacultyMap(cellValue, facCode)
+                            );
                         }
                     });
                 });
@@ -758,6 +946,7 @@
                     </div>`;
                 displayCard.classList.remove('hidden');
                 lucide.createIcons();
+                speakAssistantText(`${actualDay} Schedule - ${localSelectedSection}. Sunday Holiday! No classes scheduled.`);
                 return;
             }
 
@@ -769,30 +958,13 @@
                         No scheduled classes discovered for section: ${localSelectedSection}.
                     </div>`;
             } else {
-                let htmlMatrix = `<div class="space-y-2 pt-1">`;
-                activeClasses.forEach(item => {
-                    const room = item.subjectDetails.match(/\[([^\]]+)\]/);
-                    const roomLabel = room ? `<span class="text-xs text-slate-400 font-medium ml-1">[${room[1]}]</span>` : '';
-                    htmlMatrix += `
-                        <div class="bg-gradient-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3">
-                            <div class="slot-badge bg-blue-100 text-blue-700 text-xs px-2 py-1.5 rounded-lg font-bold mt-0.5">
-                                ${item.slot}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <h4 class="font-bold text-slate-900 text-sm leading-snug">${item.subjectDetails.replace(/\[.*?\]/g,'').trim()}${roomLabel}</h4>
-                                <p class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1">
-                                    <i data-lucide="user" class="w-3 h-3 shrink-0"></i>${getFacultyDisplay(item.faculty)}
-                                </p>
-                            </div>
-                        </div>`;
-                });
-                htmlMatrix += `</div>`;
-                targetRenderArea.innerHTML = htmlMatrix;
+                targetRenderArea.innerHTML = buildScheduleCardsHTML(activeClasses, 'blue');
             }
 
             displayCard.classList.remove('hidden');
             lucide.createIcons();
             displayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            speakAssistantText(`${actualDay} Schedule - ${localSelectedSection}. ${targetRenderArea.innerHTML}`);
         }
 
         function renderWholeWeek() {
@@ -806,39 +978,12 @@
             if (titleText) titleText.innerText = `Weekly Overview - ${localSelectedSection}`;
             if (titleIcon) titleIcon.innerHTML = `<i data-lucide="grid" class="w-5 h-5 text-amber-600"></i>`;
 
-            const operatingWeekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            let weekHTML = `<div class="space-y-3 pt-1 max-h-[60dvh] overflow-y-auto smooth-scroll pr-1">`;
-
-            operatingWeekdays.forEach(day => {
-                const dayClasses = getSectionScheduleForDay(day, localSelectedSection).slice().sort(compareScheduleItemsBySlot);
-                weekHTML += `
-                    <div class="border-b border-slate-100 pb-3 last:border-0">
-                        <h4 class="font-bold text-slate-900 text-sm bg-slate-100 px-3 py-1 rounded-md inline-block mb-2">${day}</h4>`;
-
-                if (dayClasses.length === 0) {
-                    weekHTML += `<p class="text-xs text-slate-400 pl-3">No classes registered.</p>`;
-                } else {
-                    weekHTML += `<div class="space-y-1.5 pl-1">`;
-                    dayClasses.forEach(c => {
-                        weekHTML += `
-                            <div class="bg-white border border-slate-200/60 rounded-lg p-2.5 flex items-start gap-2">
-                                <span class="slot-badge bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded font-bold shrink-0">${c.slot}</span>
-                                <div class="min-w-0">
-                                    <div class="font-semibold text-slate-800 text-xs leading-snug">${c.subjectDetails.replace(/\[.*?\]/g,'').trim()}</div>
-                                    <div class="text-slate-400 text-xs mt-0.5">${getFacultyDisplay(c.faculty)}</div>
-                                </div>
-                            </div>`;
-                    });
-                    weekHTML += `</div>`;
-                }
-                weekHTML += `</div>`;
-            });
-
-            weekHTML += `</div>`;
+            const weekHTML = buildWholeWeekScheduleCardsHTML('max-h-[60dvh] smooth-scroll');
             targetRenderArea.innerHTML = weekHTML;
             displayCard.classList.remove('hidden');
             lucide.createIcons();
             displayCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            speakAssistantText(`Weekly Overview - ${localSelectedSection}. ${weekHTML}`);
         }
 
         function scrollToAI() {
@@ -998,17 +1143,107 @@
             return expandedText;
         }
 
+        function escapeRegExp(value) {
+            return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        function subjectCodePattern(code) {
+            return String(code || '').trim().split(/\s+/).map(escapeRegExp).join('\\s+');
+        }
+
+        function expandSubjectCodesForSpeech(text) {
+            if (!text || !subjectSpeechMap || Object.keys(subjectSpeechMap).length === 0) return text;
+            let expandedText = text;
+            Object.entries(subjectSpeechMap)
+                .sort((a, b) => b[0].length - a[0].length)
+                .forEach(([code, spokenName]) => {
+                    const pattern = subjectCodePattern(code);
+                    expandedText = expandedText.replace(new RegExp(`(^|[^A-Za-z0-9_])(${pattern})(?=$|[^A-Za-z0-9_])`, 'gi'), (match, prefix) => {
+                        return `${prefix}${spokenName}`;
+                    });
+                });
+            return expandedText;
+        }
+
+        function numberToSpeechUnder60(value) {
+            const ones = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+            const tens = ['', '', 'twenty','thirty','forty','fifty'];
+            if (value < 20) return ones[value] || String(value);
+            const ten = Math.floor(value / 10);
+            const one = value % 10;
+            return one ? `${tens[ten]} ${ones[one]}` : tens[ten];
+        }
+
+        function timeTokenToSpeech(token) {
+            const clean = String(token || '').replace(/[^\d:.]/g, '').replace('.', ':');
+            if (!clean) return token;
+            const parts = clean.split(':');
+            let hour = parseInt(parts[0], 10);
+            let minute = parts[1] ? parseInt(parts[1].padEnd(2, '0').slice(0, 2), 10) : 0;
+            if (!Number.isFinite(hour)) return token;
+            if (!Number.isFinite(minute)) minute = 0;
+            if (hour > 12) hour = ((hour - 1) % 12) + 1;
+            const hourWords = numberToSpeechUnder60(hour);
+            return minute ? `${hourWords} ${numberToSpeechUnder60(minute)}` : hourWords;
+        }
+
+        function normalizeTimeSlotsForSpeech(text) {
+            return text.replace(/\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)(?:\([^)]*\))?/g, (match, start, end) => {
+                return `${timeTokenToSpeech(start)} to ${timeTokenToSpeech(end)}`;
+            });
+        }
+
+        function getSpeakableFacultyNames(facultyText) {
+            if (!facultyText || /—|-|not assigned|no faculty|undefined|null|n\/?a|tba|nil/i.test(facultyText)) return [];
+
+            const names = facultyText
+                .replace(/\([^)]*\)/g, ' ')
+                .split(/\s*(?:\+|&|,|\band\b)\s*/i)
+                .map(part => part.trim())
+                .filter(part => part && /[A-Za-z]/.test(part) && !/[_\d]/.test(part) && !/^[A-Z]{1,5}$/.test(part))
+                .map(part => part.replace(/[^A-Za-z\s]/g, ' ').replace(/\s+/g, ' ').trim())
+                .filter(part => /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/.test(part) && part.length >= 3);
+
+            return [...new Set(names)];
+        }
+
+        function normalizeFacultyForSpeech(text) {
+            let normalizedText = text.replace(/Faculty:\s*([^.;]+)/gi, (match, facultyText) => {
+                const uniqueNames = getSpeakableFacultyNames(facultyText);
+                return uniqueNames.length ? `Faculty: ${uniqueNames.join(' and ')}. ` : '';
+            });
+
+            // Some compact schedule rows put faculty in parentheses after the room.
+            // Speak those only when they resolve to alphabetic faculty names; otherwise skip them.
+            normalizedText = normalizedText.replace(/(\[[^\]]*\]\s*)\(([^)]*)\)/g, (match, roomText, facultyText) => {
+                const uniqueNames = getSpeakableFacultyNames(facultyText);
+                return uniqueNames.length ? `${roomText}Faculty: ${uniqueNames.join(' and ')}. ` : roomText;
+            });
+
+            // Remove leftover unassigned/empty parenthetical fragments, including the final slot.
+            return normalizedText.replace(/\(\s*(?:—|-|not assigned|no faculty|undefined|null|n\/?a|tba|nil)?\s*\)/gi, ' ');
+        }
+
         function speakAssistantText(htmlText) {
             if (!voiceRepliesEnabled || !('speechSynthesis' in window)) return;
-            const plainText = expandFacultyCodesForSpeech(htmlText
+            let plainText = htmlText
                 .replace(/<br\s*\/?>/gi, '. ')
                 .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
                 .replace(/<[^>]*>/g, ' ')
                 .replace(/&nbsp;/g, ' ')
                 .replace(/&amp;/g, 'and')
-                .replace(/—/g, ' ')
+                .replace(/Room:\s*(?:—|-|not assigned|undefined|null)\b\.?/gi, ' ')
                 .replace(/\s+/g, ' ')
-                .trim());
+                .trim();
+            plainText = expandFacultyCodesForSpeech(plainText);
+            plainText = normalizeFacultyForSpeech(plainText);
+            plainText = expandSubjectCodesForSpeech(plainText);
+            plainText = normalizeTimeSlotsForSpeech(plainText)
+                .replace(/—/g, ' ')
+                .replace(/\s+([.,;:])/g, '$1')
+                .replace(/([.!?]){2,}/g, '$1')
+                .replace(/\s+/g, ' ')
+                .trim();
             if (!plainText) return;
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(plainText);
@@ -1072,20 +1307,145 @@
 
             logContainer.appendChild(bubbleWrapper);
             logContainer.scrollTop = logContainer.scrollHeight;
+            if (directionalRole !== 'user') {
+                bubbleWrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
             lucide.createIcons();
             if (directionalRole !== 'user') speakAssistantText(`${messageText} ${cardsHTML || ''}`);
         }
 
         // ── Helper: extract room from a cell value string ──────────────────────
         function extractRoom(str) {
-            const m = str.match(/\[([^\]]+)\]/);
+            const m = String(str || '').match(/\[([^\]]+)\]/);
             return m ? m[1] : null;
+        }
+
+        function extractRooms(str) {
+            const rooms = [];
+            String(str || '').replace(/\[([^\]]+)\]/g, (match, room) => {
+                const cleanRoom = room.trim();
+                if (cleanRoom && !rooms.includes(cleanRoom)) rooms.push(cleanRoom);
+                return match;
+            });
+            return rooms;
+        }
+
+        function countRoomMarkers(str) {
+            return extractRooms(str).length;
+        }
+
+        function shouldUsePerSubjectRooms(str) {
+            return countRoomMarkers(str) > 1;
         }
 
         // ── Helper: extract subject keyword from cell value ─────────────────────
         function extractSubject(str) {
             // Cell values look like "DBMS (AA) [LH6]" or "DBMS LAB [Lab4]" or "ENG [LH4]"
             return str.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+        }
+
+        function stripFacultyCodesFromSubject(str) {
+            return String(str || '')
+                .replace(/\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\)/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function getAllRoomsForItem(item) {
+            return [...new Set([
+                ...extractRooms(item && item.subjectDetails),
+                ...extractRooms(item && item.rawContent)
+            ])];
+        }
+
+        function getSubjectEntriesForDisplay(item) {
+            const details = item && item.subjectDetails ? item.subjectDetails : '';
+            const entries = parseSubjectRoomEntries(details);
+            if (entries.length) return entries;
+            const subject = extractSubject(details);
+            return subject ? [{
+                subject,
+                subjectKey: normalizeSubjectKey(subject),
+                faculty: '',
+                room: extractRoom(details) || ''
+            }] : [];
+        }
+
+        function getFacultyCodesForSubjectEntry(item, entry, index, entries) {
+            if (entry && entry.faculty) return entry.faculty;
+
+            const map = (item && item.subjectFacultyMap) || {};
+            const subjectKey = entry && entry.subjectKey;
+            if (subjectKey && map[subjectKey]) return map[subjectKey];
+
+            const fuzzyKey = subjectKey && Object.keys(map).find(key => key.includes(subjectKey) || subjectKey.includes(key));
+            if (fuzzyKey) return map[fuzzyKey];
+
+            const allCodes = item && item.faculty && item.faculty !== '—'
+                ? item.faculty.split(/\s*\+\s*/).map(code => code.trim()).filter(Boolean)
+                : [];
+            if (entries.length > 1 && allCodes.length === entries.length) return allCodes[index] || '';
+            if (entries.length <= 1) return allCodes.join(' + ');
+            return '';
+        }
+
+        function getFacultyNameForSubjectEntry(item, entry, index, entries) {
+            const facultyCodes = getFacultyCodesForSubjectEntry(item, entry, index, entries);
+            const facultyName = getFacultyDisplay(facultyCodes);
+            return facultyName && facultyName !== '—' ? facultyName : '';
+        }
+
+        function formatElectiveSubjectFacultyDisplay(item) {
+            const entries = getSubjectEntriesForDisplay(item);
+            return entries.map((entry, index) => {
+                const facultyName = getFacultyNameForSubjectEntry(item, entry, index, entries);
+                return `${entry.subject}(${facultyName})`;
+            }).join(' · ');
+        }
+
+        function isMultiSubjectItem(item) {
+            return getSubjectEntriesForDisplay(item).length > 1;
+        }
+
+        function getSubjectDisplay(item) {
+            const details = item && item.subjectDetails ? item.subjectDetails : '';
+            return isMultiSubjectItem(item)
+                ? formatElectiveSubjectFacultyDisplay(item)
+                : extractSubject(details);
+        }
+
+        function getRoomsDisplay(item) {
+            const rooms = getAllRoomsForItem(item);
+            return rooms.length ? rooms.join(', ') : '—';
+        }
+
+        function buildScheduleDisplayCard(item, color = 'blue') {
+            const isMulti = isMultiSubjectItem(item);
+            const facultyDisplay = getFacultyDisplay(item.faculty);
+            const showFacultyLine = !isMulti && facultyDisplay && facultyDisplay !== '—';
+            const rooms = getRoomsDisplay(item);
+            return `
+                <div class="bg-gradient-to-r from-slate-50 to-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-start gap-3">
+                    <div class="slot-badge bg-${color}-100 text-${color}-700 text-xs px-2 py-1.5 rounded-lg font-bold mt-0.5">
+                        ${item.slot}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-bold text-slate-900 text-sm leading-snug">${getSubjectDisplay(item)}</h4>
+                        <p class="text-xs text-slate-500 font-medium mt-1 flex items-center gap-1">
+                            <i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i>${rooms}
+                        </p>
+                        ${showFacultyLine ? `<p class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i>${facultyDisplay}</p>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        function buildScheduleCardsHTML(items, color = 'blue') {
+            let html = `<div class="space-y-2 pt-1">`;
+            items.slice().sort(compareScheduleItemsBySlot).forEach(item => {
+                html += buildScheduleDisplayCard(item, color);
+            });
+            html += `</div>`;
+            return html;
         }
 
         // ── Helper: get full staff name ─────────────────────────────────────────
@@ -1107,14 +1467,16 @@
         // ── Helper: build a single class card HTML ──────────────────────────────
         function buildClassCard(item, color) {
             const c = color || 'blue';
-            const room = extractRoom(item.subjectDetails) || extractRoom(item.rawContent || '') || '—';
-            const subject = extractSubject(item.subjectDetails);
-            const staffDisplay = item.faculty === '—' ? '' : `<span class="text-slate-400 block mt-1">Faculty: ${getFacultyDisplay(item.faculty)}</span>`;
+            const isMulti = isMultiSubjectItem(item);
+            const rooms = getAllRoomsForItem(item);
+            const room = rooms.length ? rooms.join(', ') : '—';
+            const subject = getSubjectDisplay(item);
+            const staffDisplay = (!isMulti && item.faculty !== '—') ? `<span class="text-slate-400 block mt-1">Faculty: ${getFacultyDisplay(item.faculty)}</span>` : '';
             return `
                 <div class="bg-${c}-50 border border-${c}-200 p-3 rounded-xl text-xs space-y-0.5">
                     <div class="font-bold text-${c}-700 text-sm">${item.slot}</div>
                     <div class="font-bold text-slate-900">${subject}</div>
-                    <div class="text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> Room: ${room}</div>
+                    <div class="text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> ${rooms.length > 1 ? 'Rooms' : 'Room'}: ${room}</div>
                     ${staffDisplay}
                 </div>`;
         }
@@ -1125,6 +1487,187 @@
             items.slice().sort(compareScheduleItemsBySlot).forEach(item => { html += buildClassCard(item, color); });
             html += `</div>`;
             return html;
+        }
+
+        function buildWholeWeekScheduleCardsHTML(maxHeightClass = 'max-h-[60dvh]') {
+            const wDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            let html = `<div class="space-y-4 ${maxHeightClass} overflow-y-auto pr-1">`;
+            wDays.forEach(day => {
+                const hits = getSectionScheduleForDay(day, localSelectedSection);
+                html += `<div class="space-y-2">
+                    <h4 class="font-bold text-slate-900 text-sm bg-slate-100 px-3 py-1 rounded-md inline-block">${day}</h4>`;
+                if (hits.length) {
+                    html += buildScheduleCardsHTML(hits, 'blue');
+                } else {
+                    html += `<p class="text-xs text-slate-400 pl-3">No classes registered.</p>`;
+                }
+                html += `</div>`;
+            });
+            html += `</div>`;
+            return html;
+        }
+
+        function buildWeeklyOverviewHTML(maxHeightClass = 'max-h-[320px]') {
+            const wDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            let html = `<div class="space-y-3 ${maxHeightClass} overflow-y-auto pr-1">`;
+            wDays.forEach(d => {
+                const hits = getSectionScheduleForDay(d, localSelectedSection);
+                if (!hits.length) return;
+                html += `<div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                    <span class="font-bold text-xs text-slate-900 bg-slate-200 px-2 py-0.5 rounded">${d}</span>
+                    <div class="mt-1.5 space-y-1">`;
+                hits.slice().sort(compareScheduleItemsBySlot).forEach(h => {
+                    const rooms = getAllRoomsForItem(h);
+                    const isMulti = isMultiSubjectItem(h);
+                    const roomHTML = isMulti
+                        ? `<span class="text-slate-400">Rooms: ${rooms.length ? rooms.join(', ') : '—'}</span>`
+                        : `<span class="text-slate-400">[${rooms[0] || '—'}]</span>`;
+                    const facultyHTML = (!isMulti && getFacultyDisplay(h.faculty) !== '—') ? ` <span class="text-slate-400">(${getFacultyDisplay(h.faculty)})</span>` : '';
+                    html += `<div class="text-xs text-slate-700">• <b>${h.slot}</b>: ${getSubjectDisplay(h)} ${roomHTML}${facultyHTML}</div>`;
+                });
+                html += `</div></div>`;
+            });
+            html += `</div>`;
+            return html;
+        }
+
+        function simplifySubjectSearchText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/\bc\s*sharp\b/g, 'c#')
+                .replace(/\bo\s*\.?\s*s\s*\.?\b/g, 'os')
+                .replace(/\bd\s*\.?\s*b\s*\.?\s*m\s*\.?\s*s\s*\.?\b/g, 'dbms')
+                .replace(/\bd\s*\.?\s*a\s*\.?\s*a\s*\.?\b/g, 'daa')
+                .replace(/\bo\s*\.?\s*s\s*\.?\s*t\s*\.?\b/g, 'ost')
+                .replace(/\bw\s*\.?\s*c\s*\.?\s*m\s*\.?\s*s\s*\.?\b/g, 'wcms')
+                .replace(/[^a-z0-9#_.+]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function compactSubjectSearchText(value) {
+            return simplifySubjectSearchText(value).replace(/[\s._+]/g, '');
+        }
+
+        function getSubjectAliasesForEntry(entry) {
+            const aliases = new Set();
+            const subject = entry && entry.subject ? entry.subject : '';
+            const subjectKey = entry && entry.subjectKey ? entry.subjectKey : normalizeSubjectKey(subject);
+            if (subject) aliases.add(subject);
+            if (subjectKey) aliases.add(subjectKey);
+
+            Object.entries(subjectSpeechMap || {}).forEach(([code, spokenName]) => {
+                const codeKey = normalizeSubjectKey(code);
+                const nameKey = normalizeSubjectKey(spokenName);
+                if (codeKey === subjectKey || nameKey === subjectKey) {
+                    aliases.add(code);
+                    aliases.add(spokenName);
+                }
+            });
+            return [...aliases].filter(Boolean);
+        }
+
+        function scoreSubjectMatch(queryText, entry) {
+            const qNorm = simplifySubjectSearchText(queryText);
+            const qCompact = compactSubjectSearchText(queryText);
+            if (!qNorm || qCompact.length < 2) return 0;
+
+            let bestScore = 0;
+            getSubjectAliasesForEntry(entry).forEach(alias => {
+                const aliasNorm = simplifySubjectSearchText(alias);
+                const aliasCompact = compactSubjectSearchText(alias);
+                if (!aliasNorm || !aliasCompact) return;
+
+                if (qNorm === aliasNorm) bestScore = Math.max(bestScore, 100);
+                if (qCompact === aliasCompact) bestScore = Math.max(bestScore, 98);
+                if (/\blab\b/.test(aliasNorm) && !/\blab\b/.test(qNorm) && aliasNorm !== qNorm) return;
+                if (qNorm.includes(aliasNorm) && aliasCompact.length >= 2) bestScore = Math.max(bestScore, 85);
+                if (aliasNorm.startsWith(qNorm + ' ') && qNorm.length >= 3) bestScore = Math.max(bestScore, 70);
+                if (aliasNorm.includes(qNorm) && qNorm.length >= 3) bestScore = Math.max(bestScore, 65);
+
+                const qWords = qNorm.split(' ').filter(Boolean);
+                const aliasWords = aliasNorm.split(' ').filter(Boolean);
+                if (qWords.length && qWords.every(word => aliasWords.includes(word))) {
+                    bestScore = Math.max(bestScore, qWords.length === aliasWords.length ? 92 : 62);
+                }
+            });
+
+            return bestScore;
+        }
+
+        function extractSubjectQueryFromInput(rawInputText) {
+            return simplifySubjectSearchText(
+                String(rawInputText || '')
+                    .replace(/\bat\s+\d{1,2}(?:[:.]\d{1,2})?\b/gi, ' ')
+                    .replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ')
+                    .replace(/what\s+time|when\s+is|when|who\s+teaches|who\s+teach(?:es)?|who\s+is\s+(?:the\s+)?teacher|teacher\s+for|faculty\s+of|instructor\s+of|staff\s+for/gi, ' ')
+                    .replace(/where\s+is|which\s+room|room\s+for|in\s+which\s+room|location\s+of/gi, ' ')
+                    .replace(/\b(show|tell|me|please|my|the|class|classes|lecture|period|schedule|timetable|subject|for|on|is|are)\b/gi, ' ')
+            );
+        }
+
+        function buildSubjectHits(subjectQuery, dayName = '') {
+            const days = dayName ? [dayName] : ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const allHits = [];
+
+            days.forEach(day => {
+                if (day === 'Sunday') return;
+                getSectionScheduleForDay(day, localSelectedSection).forEach(item => {
+                    const entries = getSubjectEntriesForDisplay(item);
+                    entries.forEach((entry, index) => {
+                        const score = scoreSubjectMatch(subjectQuery, entry);
+                        if (score > 0) {
+                            allHits.push({ day, item, entry, entryIndex: index, entries, score });
+                        }
+                    });
+                });
+            });
+
+            if (!allHits.length) return [];
+            const bestScore = Math.max(...allHits.map(hit => hit.score));
+            const threshold = bestScore >= 90 ? 90 : 60;
+            const seen = new Set();
+            return allHits
+                .filter(hit => hit.score >= threshold)
+                .sort((a, b) => {
+                    const dayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day) ||
+                        compareScheduleItemsBySlot(a.item, b.item) ||
+                        b.score - a.score;
+                })
+                .filter(hit => {
+                    const key = `${hit.day}|${hit.item.slot}|${hit.entry.subjectKey}`;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+        }
+
+        function buildSubjectHitCard(hit, color = 'blue') {
+            const facultyCodes = getFacultyCodesForSubjectEntry(hit.item, hit.entry, hit.entryIndex, hit.entries);
+            const facultyDisplay = getFacultyDisplay(facultyCodes);
+            const room = hit.entry.room || getRoomsDisplay(hit.item);
+            const facultyLine = facultyDisplay && facultyDisplay !== '—'
+                ? `<p class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i>${facultyDisplay}</p>`
+                : '';
+            return `
+                <div class="bg-${color}-50 border border-${color}-200 p-3 rounded-xl text-xs space-y-0.5">
+                    <div class="font-bold text-${color}-700 text-sm">${hit.day} · ${hit.item.slot}</div>
+                    <div class="font-bold text-slate-900">${hit.entry.subject}</div>
+                    <div class="text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> Room: ${room || '—'}</div>
+                    ${facultyLine}
+                </div>`;
+        }
+
+        function buildSubjectHitList(hits, color = 'blue') {
+            let html = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">`;
+            hits.forEach(hit => { html += buildSubjectHitCard(hit, color); });
+            html += `</div>`;
+            return html;
+        }
+
+        function subjectDisplayNameFromHits(hits, fallbackQuery) {
+            return hits && hits.length ? hits[0].entry.subject : String(fallbackQuery || '').toUpperCase();
         }
 
         // ── Helper: find classes matching a subject keyword across all days ─────
@@ -1143,7 +1686,8 @@
         }
 
         function processAIQueryEngine(rawInputText) {
-            const q = rawInputText.toLowerCase()
+            const rawLowerInput = String(rawInputText || '').toLowerCase();
+            const q = rawLowerInput
                 .replace(/[.,\/#!$%\^&\*;:{}={}`~()\?]/g, " ")
                 .replace(/\s+/g, " ")
                 .trim();
@@ -1158,23 +1702,8 @@
             // ── Whole week ──────────────────────────────────────────────────────
             if (q.match(/whole week|weekly|all days|full timetable|full schedule/)) {
                 const wDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-                let html = `<div class="space-y-3 max-h-[320px] overflow-y-auto pr-1">`;
-                let total = 0;
-                wDays.forEach(d => {
-                    const hits = getSectionScheduleForDay(d, localSelectedSection);
-                    if (!hits.length) return;
-                    total += hits.length;
-                    html += `<div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
-                        <span class="font-bold text-xs text-slate-900 bg-slate-200 px-2 py-0.5 rounded">${d}</span>
-                        <div class="mt-1.5 space-y-1">`;
-                    hits.forEach(h => {
-                        const room = extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—';
-                        const subj = extractSubject(h.subjectDetails);
-                        html += `<div class="text-xs text-slate-700">• <b>${h.slot}</b>: ${subj} <span class="text-slate-400">[${room}]</span> <span class="text-slate-400">(${getFacultyDisplay(h.faculty)})</span></div>`;
-                    });
-                    html += `</div></div>`;
-                });
-                html += `</div>`;
+                const total = wDays.reduce((sum, d) => sum + getSectionScheduleForDay(d, localSelectedSection).length, 0);
+                const html = buildWeeklyOverviewHTML('max-h-[320px]');
                 appendMessageBubble(total > 0 ? `Weekly timetable for <b>${localSelectedSection}</b>:` : fail, 'ai', total > 0 ? html : '');
                 return;
             }
@@ -1252,28 +1781,17 @@
                 return;
             }
 
-            // ── Schedule for a specific day ──────────────────────────────────────
-            if (targetedDayKeyword || q.match(/timetable|schedule|classes today|today classes/)) {
-                if (!targetedDayKeyword) targetedDayKeyword = todayName;
-                if (targetedDayKeyword === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
-                const list = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
-                if (!list.length) { appendMessageBubble(`No classes found for <b>${targetedDayKeyword}</b> (${localSelectedSection}).`, 'ai'); return; }
-                appendMessageBubble(`Schedule for <b>${targetedDayKeyword}</b> — ${localSelectedSection}:`, 'ai', buildCardList(list, 'blue'));
-                return;
-            }
-
             // ── What class is at a specific time ────────────────────────────────
-            // e.g. "what class at 11", "class at 9", "what is at 2:15"
-            const timeMatch = q.match(/\bat\s+(\d{1,2})[:\.]?(\d{0,2})/);
+            // e.g. "what class at 11", "class at 9", "what is at 2:15 today"
+            const timeMatch = rawLowerInput.match(/\bat\s+(\d{1,2})(?:[:\.](\d{1,2})|\s+(\d{1,2}))?/);
             if (timeMatch) {
                 let qh = parseInt(timeMatch[1]);
-                let qm = parseInt(timeMatch[2] || '0') || 0;
+                let qm = parseInt(timeMatch[2] || timeMatch[3] || '0') || 0;
                 if (qh >= 1 && qh <= 7) qh += 12; // afternoon
                 const qMins = qh * 60 + qm;
                 const checkDay = targetedDayKeyword || todayName;
                 if (checkDay === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
                 const list = getSectionScheduleForDay(checkDay, localSelectedSection);
-                // find the slot whose start ≤ qMins < end
                 const match = list.find(c => {
                     const start = parseSlotTimeToMinutes(c.slot);
                     const parts = c.slot.replace(/\(.*?\)/g,'').split('-');
@@ -1291,97 +1809,75 @@
                 return;
             }
 
-            // ── Room / where is a class ─────────────────────────────────────────
-            // e.g. "where is dbms", "room for python", "which room for web"
-            if (q.match(/where is|which room|room for|in which room|location of/)) {
-                const kw = q.replace(/where is|which room|room for|in which room|location of|class|the|my/g, '').trim();
-                const hits = findSubjectAcrossWeek(kw);
-                if (hits.length) {
-                    const rooms = [...new Set(hits.map(h => extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—').filter(r => r !== '—'))];
-                    appendMessageBubble(
-                        rooms.length
-                            ? `<b>${kw.toUpperCase()}</b> classes are held in: <b>${rooms.join(', ')}</b>`
-                            : `Found <b>${kw.toUpperCase()}</b> in your schedule but no room info is available.`,
-                        'ai'
-                    );
-                } else {
-                    appendMessageBubble(`Could not find <b>${kw.toUpperCase()}</b> in your schedule.`, 'ai');
-                }
-                return;
-            }
+            // ── Subject intelligence: when/what time/who teaches/room ─────────────
+            const subjectQuery = extractSubjectQueryFromInput(rawInputText);
+            const subjectIntent = subjectQuery && (
+                q.match(/when|what time|timing|time|schedule|class|classes|who teach|teacher|faculty|staff|where|room|location/) ||
+                buildSubjectHits(subjectQuery, targetedDayKeyword || '').length ||
+                buildSubjectHits(subjectQuery, '').length
+            );
+            if (subjectIntent) {
+                const subjectDay = targetedDayKeyword || (q.match(/\btoday\b/) ? todayName : '');
+                const subjectHits = buildSubjectHits(subjectQuery, subjectDay);
+                const allWeekHits = subjectHits.length ? subjectHits : buildSubjectHits(subjectQuery, '');
+                const displaySubject = subjectDisplayNameFromHits(allWeekHits, subjectQuery);
 
-            // ── Who teaches ─────────────────────────────────────────────────────
-            // e.g. "who teaches dbms", "who is the teacher for web"
-            if (q.match(/who teach|who is.*teacher|faculty of|instructor of|staff for/)) {
-                const kw = q.replace(/who teach(es|er)?|who is (the )?teacher|faculty of|instructor of|staff for|for|the|my/g, '').trim();
-                const hits = findSubjectAcrossWeek(kw);
-                if (hits.length) {
+                if (q.match(/who teach|who is.*teacher|teacher|faculty|staff/)) {
+                    if (!allWeekHits.length) {
+                        appendMessageBubble(`Could not find <b>${subjectQuery.toUpperCase()}</b> in your section schedule.`, 'ai');
+                        return;
+                    }
                     const facultyMap = {};
-                    hits.forEach(h => {
-                        if (h.faculty && h.faculty !== '—') {
-                            h.faculty.split(/\s*\+\s*/).forEach(f => {
-                                const name = getStaffName(f.trim());
-                                facultyMap[f.trim()] = name;
-                            });
-                        }
+                    allWeekHits.forEach(hit => {
+                        const codes = getFacultyCodesForSubjectEntry(hit.item, hit.entry, hit.entryIndex, hit.entries);
+                        String(codes || '').split(/\s*\+\s*/).forEach(code => {
+                            const cleanCode = code.trim();
+                            if (cleanCode && cleanCode !== '—') facultyMap[cleanCode] = getStaffName(cleanCode);
+                        });
                     });
                     const entries = Object.entries(facultyMap);
                     if (entries.length) {
-                        const list = entries.map(([, name]) => `<b>${name}</b>`).join(', ');
-                        appendMessageBubble(`<b>${kw.toUpperCase()}</b> is taught by: ${list}`, 'ai');
+                        appendMessageBubble(`<b>${displaySubject}</b> is taught by: ${entries.map(([, name]) => `<b>${name}</b>`).join(', ')}`, 'ai');
                     } else {
-                        appendMessageBubble(`Found <b>${kw.toUpperCase()}</b> in your schedule but faculty info is not available.`, 'ai');
+                        appendMessageBubble(`Found <b>${displaySubject}</b> in your schedule but faculty info is not available.`, 'ai');
                     }
-                } else {
-                    appendMessageBubble(`Could not find <b>${kw.toUpperCase()}</b> in your schedule.`, 'ai');
+                    return;
                 }
+
+                if (q.match(/where|room|location/)) {
+                    if (!allWeekHits.length) {
+                        appendMessageBubble(`Could not find <b>${subjectQuery.toUpperCase()}</b> in your section schedule.`, 'ai');
+                        return;
+                    }
+                    const rooms = [...new Set(allWeekHits.map(hit => hit.entry.room || getRoomsDisplay(hit.item)).filter(room => room && room !== '—'))];
+                    appendMessageBubble(
+                        rooms.length
+                            ? `<b>${displaySubject}</b> classes are held in: <b>${rooms.join(', ')}</b>`
+                            : `Found <b>${displaySubject}</b> in your schedule but no room info is available.`,
+                        'ai'
+                    );
+                    return;
+                }
+
+                if (!subjectHits.length) {
+                    const scope = subjectDay ? ` on <b>${subjectDay}</b>` : '';
+                    appendMessageBubble(`No <b>${subjectQuery.toUpperCase()}</b> class found${scope} for ${localSelectedSection}.`, 'ai');
+                    return;
+                }
+
+                const scopeLabel = subjectDay ? ` on <b>${subjectDay}</b>` : ' this week';
+                appendMessageBubble(`Schedule for <b>${displaySubject}</b>${scopeLabel} (${localSelectedSection}):`, 'ai', buildSubjectHitList(subjectHits, 'blue'));
                 return;
             }
 
-            // ── When is a subject / subject schedule ─────────────────────────────
-            // e.g. "when is dbms", "dbms schedule", "show python classes"
-            {
-                // Try to match any word in the query against subject names in the timetable
-                const allSubjects = new Set();
-                ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].forEach(d => {
-                    getSectionScheduleForDay(d, localSelectedSection).forEach(h => {
-                        allSubjects.add(extractSubject(h.subjectDetails).toLowerCase());
-                    });
-                });
-
-                let matchedKw = '';
-                // Check each word/phrase in the query against known subjects
-                const words = q.split(' ').filter(w => w.length > 1);
-                for (const word of words) {
-                    for (const subj of allSubjects) {
-                        if (subj.includes(word) || word.includes(subj.split(' ')[0])) {
-                            matchedKw = word; break;
-                        }
-                    }
-                    if (matchedKw) break;
-                }
-
-                if (matchedKw) {
-                    const hits = findSubjectAcrossWeek(matchedKw);
-                    if (hits.length) {
-                        let html = `<div class="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">`;
-                        hits.forEach(h => {
-                            const room = extractRoom(h.subjectDetails) || extractRoom(h.rawContent||'') || '—';
-                            const subj = extractSubject(h.subjectDetails);
-                            const staffName = h.faculty !== '—' ? getStaffName(h.faculty.split('+')[0].trim()) : '';
-                            html += `<div class="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-xs">
-                                <span class="font-bold text-blue-700">${h.day}</span> &nbsp;
-                                <span class="font-bold text-slate-700">${h.slot}</span> &nbsp;
-                                <span class="text-slate-600">${subj}</span> &nbsp;
-                                <span class="text-slate-400">[${room}]</span>
-                                ${staffName ? `<span class="text-slate-400 block mt-0.5">Faculty: ${staffName} (${h.faculty})</span>` : ''}
-                            </div>`;
-                        });
-                        html += `</div>`;
-                        appendMessageBubble(`Schedule for <b>${matchedKw.toUpperCase()}</b> (${localSelectedSection}):`, 'ai', html);
-                        return;
-                    }
-                }
+            // ── Schedule for a specific day ──────────────────────────────────────
+            if (targetedDayKeyword || q.match(/timetable|schedule|classes today|today classes/)) {
+                if (!targetedDayKeyword) targetedDayKeyword = todayName;
+                if (targetedDayKeyword === 'Sunday') { appendMessageBubble("Sunday is a holiday — no classes.", 'ai'); return; }
+                const list = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                if (!list.length) { appendMessageBubble(`No classes found for <b>${targetedDayKeyword}</b> (${localSelectedSection}).`, 'ai'); return; }
+                appendMessageBubble(`Schedule for <b>${targetedDayKeyword}</b> — ${localSelectedSection}:`, 'ai', buildCardList(list, 'blue'));
+                return;
             }
 
             // ── Fallback ─────────────────────────────────────────────────────────
@@ -1389,6 +1885,7 @@
         }
     
     </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>

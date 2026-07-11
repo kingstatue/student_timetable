@@ -1,13 +1,11 @@
-const CACHE_VERSION = 'mgm-student-ai-v1';
+const CACHE_VERSION = 'mgm-student-ai-v2';
 const SHELL_CACHE = CACHE_VERSION + '-shell';
 
 const PRECACHE_ASSETS = [
-    'student-manifest.json',
-    'index.html',
-    'icons/icon-192.png',
-    'icons/icon-512.png',
-    'timetable.json',
-    'subject.json'
+    './student-manifest.json',
+    './index.html',
+    './icons/icon-192.png',
+    './icons/icon-512.png',
 ];
 
 function isTimetableJsonUrl(url) {

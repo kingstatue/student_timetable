@@ -1,8 +1,8 @@
 {
   "name": "MGM Student AI Portal",
-  "short_name": "MGMSTTAI",
+  "short_name": "MGMSTTVIEW_AI",
   "description": "Smart AI Timetable Assistant for MGM Students",
-  "start_url": "index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f1f5f9",
   "theme_color": "#2563eb",
