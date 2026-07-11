@@ -254,17 +254,13 @@
                     <p class="text-sm text-slate-700 leading-relaxed">
                         Hello! I'm your timetable assistant. You can ask me things like:
                     </p>
-                    <div class="grid grid-cols-2 gap-1.5 pt-1 text-xs text-blue-600">
-                        <button onclick="submitSuggestedQuery('Show Monday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Monday classes</button>
-                        <button onclick="submitSuggestedQuery('Show Tuesday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Tuesday classes</button>
-                        <button onclick="submitSuggestedQuery('Show Wednesday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Wednesday classes</button>
-                        <button onclick="submitSuggestedQuery('Show Thursday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Thursday classes</button>
-                        <button onclick="submitSuggestedQuery('Show Friday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Friday classes</button>
-                        <button onclick="submitSuggestedQuery('Show Saturday classes')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Saturday classes</button>
-                        <button onclick="submitSuggestedQuery('What class is at 11?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 11?</button>
-                        <button onclick="submitSuggestedQuery('What class is at 2.20?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Class at 2.20?</button>
-                        <button onclick="submitSuggestedQuery('Who teaches DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">Who teaches subject?</button>
-                        <button onclick="submitSuggestedQuery('When is DBMS?')" class="text-left bg-blue-50 active:bg-blue-100 p-2.5 rounded-lg border border-blue-100 font-medium leading-snug">When is subject?</button>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 pt-1 text-xs text-blue-700">
+                        <p>• Show Monday classes</p>
+                        <p>• What class is at 11?</p>
+                        <p>• Today what time DBMS lab?</p>
+                        <p>• What time C sharp?</p>
+                        <p>• Who teaches DBMS?</p>
+                        <p>• When is maths?</p>
                     </div>
                 </div>
             </div>
@@ -351,6 +347,7 @@
 
         // ── PIN-First Login Screen functions ────────────────────────────────
         function showLoginScreen() {
+            stopAssistantSpeech();
             loginPinInput = '';
             loginAttempts = 0;
             loginPendingSection = '';
@@ -563,6 +560,7 @@
 
         // Change Section — clears unlock and shows PIN login again
         function changeSection() {
+            stopAssistantSpeech();
             if (localSelectedSection) {
                 clearSectionUnlock(localSelectedSection);
             }
@@ -640,6 +638,8 @@
         }
 
         function showSectionPickerModal() {
+            stopAssistantSpeech();
+            closeTimetableView();
             const modal = document.getElementById('section-picker-modal');
             if (modal) modal.classList.remove('hidden');
         }
@@ -656,8 +656,10 @@
             if (!pickerValue) return;
 
             if (isSectionUnlocked(pickerValue)) {
+                stopAssistantSpeech();
                 unlockSection(pickerValue);
             } else {
+                stopAssistantSpeech();
                 hideSectionPickerModal();
                 localStorage.removeItem('student_selected_section');
                 localSelectedSection = '';
@@ -987,6 +989,7 @@
         }
 
         function scrollToAI() {
+            closeTimetableView();
             const aiSec = document.getElementById('ai-section');
             if (aiSec) aiSec.scrollIntoView({ behavior: 'smooth', block: 'center' });
             const inputField = document.getElementById('ai-user-input-field');
@@ -1131,6 +1134,17 @@
             if (status) status.innerText = message;
         }
 
+        function stopAssistantSpeech() {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            if (speechRecognition && isVoiceListening) {
+                try { speechRecognition.abort(); } catch (error) {}
+                isVoiceListening = false;
+                setVoiceButtonListening(false);
+            }
+        }
+
         function expandFacultyCodesForSpeech(text) {
             if (!timetableDatabase || !timetableDatabase.staffNames || !text) return text;
             let expandedText = text;
@@ -1252,15 +1266,34 @@
             window.speechSynthesis.speak(utterance);
         }
 
+        function getAssistantExamplePromptsHTML() {
+            return `
+                <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm max-w-[85%] self-start space-y-2">
+                    <p class="text-sm text-slate-700 leading-relaxed">
+                        Hello! I'm your timetable assistant. You can ask me things like:
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 pt-1 text-xs text-blue-700">
+                        <p>• Show Monday classes</p>
+                        <p>• What class is at 11?</p>
+                        <p>• Today what time DBMS lab?</p>
+                        <p>• What time C sharp?</p>
+                        <p>• Who teaches DBMS?</p>
+                        <p>• When is maths?</p>
+                    </div>
+                </div>`;
+        }
+
         function clearChatLog() {
             const stream = document.getElementById('chat-stream-log');
             if (stream) {
-                stream.innerHTML = `
-                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm max-w-[85%] self-start space-y-2">
-                        <p class="text-sm text-slate-700">Chat history cleared. Send a message to pull context data details:</p>
-                    </div>`;
+                stream.innerHTML = getAssistantExamplePromptsHTML();
             }
             lucide.createIcons();
+        }
+
+        function clearChatForSingleAnswer() {
+            const stream = document.getElementById('chat-stream-log');
+            if (stream) stream.innerHTML = '';
         }
 
         function submitSuggestedQuery(queryText) {
@@ -1285,7 +1318,8 @@
             const cleanQuery = fieldElement.value.trim();
             if (!cleanQuery) return;
 
-            appendMessageBubble(cleanQuery, 'user');
+            stopAssistantSpeech();
+            clearChatForSingleAnswer();
             fieldElement.value = '';
             processAIQueryEngine(cleanQuery);
         }
