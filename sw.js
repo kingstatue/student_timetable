@@ -1,11 +1,11 @@
 const CACHE_NAME = 'mgm-student-portal-offline-v4';
 const PRECACHE_URLS = [
   './',
-  './index.html',
-  './timetable.json',
-  './subject.json',
-  './subject.JSON',
-  './student-manifest.json',
+  'index.html',
+  'timetable.json',
+  'subject.json',
+  'subject.JSON',
+  'student-manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
   'https://cdn.tailwindcss.com',
@@ -45,7 +45,7 @@ self.addEventListener('fetch', event => {
   const sameOrigin = url.origin === self.location.origin;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, './index.html'));
+    event.respondWith(networkFirst(request, 'index.html'));
     return;
   }
 
