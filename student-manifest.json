@@ -1,6 +1,6 @@
 {
   "name": "MGM Student AI Portal",
-  "short_name": "MGM Portal",
+  "short_name": "MGM Student View",
   "description": "Offline-capable timetable portal for students.",
   "start_url": "./index.html",
   "scope": "./",
