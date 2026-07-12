@@ -1,95 +1,86 @@
-const CACHE_NAME = 'mgm-student-portal-offline-v4';
-const PRECACHE_URLS = [
+const APP_VERSION = '2026-07-12-pwa-auto-update-v2';
+const APP_CACHE = `mgm-student-portal-app-${APP_VERSION}`;
+const RUNTIME_CACHE = `mgm-student-portal-runtime-${APP_VERSION}`;
+const CACHE_PREFIX = 'mgm-student-portal-';
+
+const CORE_ASSETS = [
   './',
-  'index.html',
-  'timetable.json',
-  'subject.json',
-  'subject.JSON',
-  'student-manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/lucide@latest'
+  './index.html',
+  './student-manifest.json',
+  './timetable.json',
+  './subject.json',
+  
 ];
 
+const toScopeUrl = asset => new URL(asset, self.registration.scope).href;
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await Promise.all(PRECACHE_URLS.map(async url => {
-      try {
-        const response = await fetch(url, { cache: 'reload', mode: url.startsWith('http') ? 'no-cors' : 'same-origin' });
-        if (response && (response.ok || response.type === 'opaque')) {
-          await cache.put(url, response.clone());
-        }
-      } catch (error) {
-        // Some optional files may not exist on every deployment; cache what is available.
-      }
+    const cache = await caches.open(APP_CACHE);
+    await Promise.allSettled(CORE_ASSETS.map(async asset => {
+      const url = toScopeUrl(asset);
+      const response = await fetch(url, { cache: 'reload' });
+      if (response.ok) await cache.put(url, response.clone());
     }));
-    await self.skipWaiting();
   })());
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.map(key => key === CACHE_NAME ? null : caches.delete(key)));
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter(name => name.startsWith(CACHE_PREFIX) && ![APP_CACHE, RUNTIME_CACHE].includes(name))
+      .map(name => caches.delete(name))
+    );
     await self.clients.claim();
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach(client => client.postMessage({ type: 'APP_UPDATED', version: APP_VERSION }));
   })());
 });
 
-self.addEventListener('fetch', event => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
-
-  const url = new URL(request.url);
-  const sameOrigin = url.origin === self.location.origin;
-
-  if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, 'index.html'));
-    return;
-  }
-
-  if (sameOrigin && /\.(json|JSON|html|js|css|png|jpg|jpeg|svg|webp|ico|webmanifest|manifest)$/i.test(url.pathname)) {
-    event.respondWith(networkFirst(request));
-    return;
-  }
-
-  event.respondWith(cacheFirst(request));
-});
-
-async function networkFirst(request, fallbackUrl = '') {
-  const cache = await caches.open(CACHE_NAME);
+async function networkFirst(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
   try {
-    const response = await fetch(request);
-    if (response && (response.ok || response.type === 'opaque')) {
-      await cache.put(request, response.clone());
-    }
-    return response;
+    const fresh = await fetch(request, { cache: 'no-store' });
+    if (fresh && (fresh.ok || fresh.type === 'opaque')) await cache.put(request, fresh.clone());
+    return fresh;
   } catch (error) {
-    const cached = await cache.match(request);
+    const cached = await caches.match(request, { ignoreSearch: true });
     if (cached) return cached;
-    if (fallbackUrl) {
-      const fallback = await cache.match(fallbackUrl);
-      if (fallback) return fallback;
-    }
-    return new Response('Offline content is not cached yet. Open the app once while online, then try offline again.', {
+    const appShell = await caches.match(toScopeUrl('./index.html'), { ignoreSearch: true });
+    if (appShell) return appShell;
+    return new Response('App is offline and no cached copy is available.', {
       status: 503,
-      headers: { 'Content-Type': 'text/plain' }
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
     });
   }
 }
 
-async function cacheFirst(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  if (cached) return cached;
-  try {
-    const response = await fetch(request);
-    if (response && (response.ok || response.type === 'opaque')) {
-      await cache.put(request, response.clone());
-    }
-    return response;
-  } catch (error) {
-    return new Response('', { status: 504 });
-  }
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const cached = await cache.match(request, { ignoreSearch: true });
+  const network = fetch(request)
+    .then(response => {
+      if (response && (response.ok || response.type === 'opaque')) cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => cached);
+  return cached || network;
 }
+
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.origin === self.location.origin) {
+    event.respondWith(networkFirst(request));
+  } else {
+    event.respondWith(staleWhileRevalidate(request));
+  }
+});

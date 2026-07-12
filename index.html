@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -445,6 +445,9 @@
             showLoginScreen();
         }
 
+        const APP_BUILD_VERSION = '2026-07-12-pwa-auto-update-v2';
+        let serviceWorkerRefreshInProgress = false;
+
         document.addEventListener("DOMContentLoaded", async () => {
             window.lucide = window.lucide || { createIcons() {} };
             await registerOfflineServiceWorker();
@@ -456,16 +459,54 @@
         async function registerOfflineServiceWorker() {
             if (!('serviceWorker' in navigator)) return;
             try {
-                await navigator.serviceWorker.register('./sw.js');
+                const registration = await navigator.serviceWorker.register(`./sw.js?v=${APP_BUILD_VERSION}`, {
+                    scope: './',
+                    updateViaCache: 'none'
+                });
+
+                const reloadForFreshApp = () => {
+                    if (serviceWorkerRefreshInProgress) return;
+                    serviceWorkerRefreshInProgress = true;
+                    window.location.reload();
+                };
+
+                const activateWaitingWorker = () => {
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                };
+
+                navigator.serviceWorker.addEventListener('controllerchange', reloadForFreshApp);
+                navigator.serviceWorker.addEventListener('message', event => {
+                    if (event.data?.type === 'APP_UPDATED') reloadForFreshApp();
+                });
+
+                if (registration.waiting) activateWaitingWorker();
+
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+
+                await registration.update();
+                window.addEventListener('focus', () => registration.update().catch(() => {}));
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) registration.update().catch(() => {});
+                });
             } catch (error) {
                 console.warn('Offline service worker registration failed:', error);
             }
         }
 
         async function fetchTextWithOfflineFallback(url) {
-            const runtimeCacheName = 'mgm-student-portal-offline-v4';
+            const runtimeCacheName = `mgm-student-portal-runtime-${APP_BUILD_VERSION}`;
             try {
-                const response = await fetch(url, { cache: 'default' });
+                const response = await fetch(url, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`Could not retrieve ${url}`);
                 if ('caches' in window) {
                     caches.open(runtimeCacheName)
@@ -475,7 +516,7 @@
                 return await response.text();
             } catch (networkError) {
                 if ('caches' in window) {
-                    const cachedResponse = await caches.match(url);
+                    const cachedResponse = await caches.match(url, { ignoreSearch: true });
                     if (cachedResponse) return await cachedResponse.text();
                 }
                 throw networkError;
@@ -1017,8 +1058,32 @@
         let isVoiceListening = false;
         let voiceRepliesEnabled = localStorage.getItem('ai_voice_replies') === '1';
         let finalVoiceTranscript = '';
+        const INDIAN_SPEECH_LOCALE = 'en-IN';
+        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en-in', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
+        let preferredIndianVoice = null;
+
+        function loadPreferredIndianVoice() {
+            if (!('speechSynthesis' in window)) return null;
+            const voices = window.speechSynthesis.getVoices() || [];
+            preferredIndianVoice =
+                voices.find(voice => String(voice.lang || '').toLowerCase() === INDIAN_SPEECH_LOCALE.toLowerCase()) ||
+                voices.find(voice => INDIAN_VOICE_KEYWORDS.some(keyword =>
+                    `${voice.name || ''} ${voice.lang || ''}`.toLowerCase().includes(keyword)
+                )) ||
+                voices.find(voice => String(voice.lang || '').toLowerCase().startsWith('en-')) ||
+                voices[0] ||
+                null;
+            return preferredIndianVoice;
+        }
+
+        function initIndianSpeechVoice() {
+            if (!('speechSynthesis' in window)) return;
+            loadPreferredIndianVoice();
+            window.speechSynthesis.onvoiceschanged = loadPreferredIndianVoice;
+        }
 
         function initVoiceAssistant() {
+            initIndianSpeechVoice();
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const micButton = document.getElementById('voice-input-button');
             const replyButton = document.getElementById('voice-reply-button');
@@ -1028,8 +1093,8 @@
                 setVoiceStatus('Voice input is not supported here. Use Chrome/Edge, allow microphone, and open from HTTPS/local preview.');
             } else {
                 speechRecognition = new SpeechRecognition();
-                // en-US is the most reliable Web Speech recognition locale; it still understands Indian English well.
-                speechRecognition.lang = 'en-US';
+                // Indian English recognition for spoken timetable questions.
+                speechRecognition.lang = INDIAN_SPEECH_LOCALE;
                 speechRecognition.interimResults = true;
                 speechRecognition.continuous = false;
                 speechRecognition.maxAlternatives = 3;
@@ -1125,7 +1190,7 @@
             voiceRepliesEnabled = !voiceRepliesEnabled;
             localStorage.setItem('ai_voice_replies', voiceRepliesEnabled ? '1' : '0');
             updateVoiceReplyButton();
-            setVoiceStatus(voiceRepliesEnabled ? 'Spoken replies enabled.' : 'Spoken replies muted.');
+            setVoiceStatus(voiceRepliesEnabled ? 'Indian English spoken replies enabled.' : 'Spoken replies muted.');
             if (!voiceRepliesEnabled) window.speechSynthesis?.cancel();
         }
 
@@ -1278,8 +1343,11 @@
             if (!plainText) return;
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(plainText);
-            utterance.lang = 'en-IN';
-            utterance.rate = 0.95;
+            const indianVoice = preferredIndianVoice || loadPreferredIndianVoice();
+            utterance.lang = indianVoice?.lang || INDIAN_SPEECH_LOCALE;
+            if (indianVoice) utterance.voice = indianVoice;
+            utterance.rate = 0.92;
+            utterance.pitch = 1;
             window.speechSynthesis.speak(utterance);
         }
 
@@ -1937,6 +2005,7 @@
         }
     
     </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
