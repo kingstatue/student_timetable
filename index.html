@@ -445,6 +445,9 @@
             showLoginScreen();
         }
 
+        const APP_BUILD_VERSION = '2026-07-12-pwa-auto-update-v2';
+        let serviceWorkerRefreshInProgress = false;
+
         document.addEventListener("DOMContentLoaded", async () => {
             window.lucide = window.lucide || { createIcons() {} };
             await registerOfflineServiceWorker();
@@ -456,16 +459,54 @@
         async function registerOfflineServiceWorker() {
             if (!('serviceWorker' in navigator)) return;
             try {
-                await navigator.serviceWorker.register('./sw.js');
+                const registration = await navigator.serviceWorker.register(`./sw.js?v=${APP_BUILD_VERSION}`, {
+                    scope: './',
+                    updateViaCache: 'none'
+                });
+
+                const reloadForFreshApp = () => {
+                    if (serviceWorkerRefreshInProgress) return;
+                    serviceWorkerRefreshInProgress = true;
+                    window.location.reload();
+                };
+
+                const activateWaitingWorker = () => {
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                };
+
+                navigator.serviceWorker.addEventListener('controllerchange', reloadForFreshApp);
+                navigator.serviceWorker.addEventListener('message', event => {
+                    if (event.data?.type === 'APP_UPDATED') reloadForFreshApp();
+                });
+
+                if (registration.waiting) activateWaitingWorker();
+
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+
+                await registration.update();
+                window.addEventListener('focus', () => registration.update().catch(() => {}));
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) registration.update().catch(() => {});
+                });
             } catch (error) {
                 console.warn('Offline service worker registration failed:', error);
             }
         }
 
         async function fetchTextWithOfflineFallback(url) {
-            const runtimeCacheName = 'mgm-student-portal-offline-v4';
+            const runtimeCacheName = `mgm-student-portal-runtime-${APP_BUILD_VERSION}`;
             try {
-                const response = await fetch(url, { cache: 'default' });
+                const response = await fetch(url, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`Could not retrieve ${url}`);
                 if ('caches' in window) {
                     caches.open(runtimeCacheName)
@@ -475,7 +516,7 @@
                 return await response.text();
             } catch (networkError) {
                 if ('caches' in window) {
-                    const cachedResponse = await caches.match(url);
+                    const cachedResponse = await caches.match(url, { ignoreSearch: true });
                     if (cachedResponse) return await cachedResponse.text();
                 }
                 throw networkError;
