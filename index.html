@@ -446,29 +446,46 @@
         }
 
         document.addEventListener("DOMContentLoaded", async () => {
+            window.lucide = window.lucide || { createIcons() {} };
+            await registerOfflineServiceWorker();
             await bootstrapTimetableEngine();
-            if ('serviceWorker' in navigator) {
-                // Disable old PWA/service-worker cache while timetable ordering is being fixed.
-                // Old cached JavaScript can keep showing the previous unsorted order even
-                // after downloading a corrected index.html.
-                navigator.serviceWorker.getRegistrations()
-                    .then(registrations => registrations.forEach(reg => reg.unregister()))
-                    .catch(() => {});
-            }
-            if ('caches' in window) {
-                caches.keys()
-                    .then(keys => keys.forEach(key => caches.delete(key)))
-                    .catch(() => {});
-            }
             initVoiceAssistant();
             lucide.createIcons();
         });
 
+        async function registerOfflineServiceWorker() {
+            if (!('serviceWorker' in navigator)) return;
+            try {
+                await navigator.serviceWorker.register('./sw.js');
+            } catch (error) {
+                console.warn('Offline service worker registration failed:', error);
+            }
+        }
+
+        async function fetchTextWithOfflineFallback(url) {
+            const runtimeCacheName = 'mgm-student-portal-offline-v4';
+            try {
+                const response = await fetch(url, { cache: 'default' });
+                if (!response.ok) throw new Error(`Could not retrieve ${url}`);
+                if ('caches' in window) {
+                    caches.open(runtimeCacheName)
+                        .then(cache => cache.put(url, response.clone()))
+                        .catch(() => {});
+                }
+                return await response.text();
+            } catch (networkError) {
+                if ('caches' in window) {
+                    const cachedResponse = await caches.match(url);
+                    if (cachedResponse) return await cachedResponse.text();
+                }
+                throw networkError;
+            }
+        }
+
         async function bootstrapTimetableEngine() {
             try {
-                const response = await fetch('timetable.json', { cache: 'no-store' });
-                if (!response.ok) throw new Error("Could not retrieve JSON database.");
-                timetableDatabase = await response.json();
+                const timetableText = await fetchTextWithOfflineFallback('timetable.json');
+                timetableDatabase = JSON.parse(timetableText);
                 await loadSubjectSpeechMap();
                 if (timetableDatabase.college) {
                     document.getElementById('college-name').innerText = timetableDatabase.college;
@@ -484,9 +501,7 @@
             const candidateFiles = ['subject.json', 'subject.JSON'];
             for (const fileName of candidateFiles) {
                 try {
-                    const response = await fetch(fileName, { cache: 'no-store' });
-                    if (!response.ok) continue;
-                    const fileText = await response.text();
+                    const fileText = await fetchTextWithOfflineFallback(fileName);
                     let parsed = null;
                     try {
                         parsed = JSON.parse(fileText);
