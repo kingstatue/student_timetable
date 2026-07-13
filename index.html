@@ -1092,9 +1092,9 @@
         let finalVoiceTranscript = '';
         let speechOutputPrimed = false;
         let speechKeepAliveTimer = null;
-        const INDIAN_SPEECH_LOCALE = 'en_IN';
-        const FALLBACK_SPEECH_LOCALE = 'en_US';
-        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en_in', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
+        const INDIAN_SPEECH_LOCALE = 'en-IN';
+        const FALLBACK_SPEECH_LOCALE = 'en-US';
+        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en-in', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
         let preferredIndianVoice = null;
 
         function loadPreferredIndianVoice() {
@@ -1825,8 +1825,10 @@
         }
 
         // Lightweight phonetic normaliser tuned for Indian faculty/subject speech.
-        // Handles: Rajamoorthy/Rajamoorthi, Sri/Shri/Shree, ph<->f, v<->w,
-        // trailing y/i, doubled consonants, "ee"->"i" etc.
+        // IMPORTANT: this version preserves vowels (so "maths" ≠ "mithun" ≠ "mts").
+        // It only maps *equivalent* phonemes and collapses doubled letters, then
+        // returns the vowel-preserving skeleton.  A second, aggressive skeleton
+        // (`phoneticSkeleton`) is available separately for last-resort matching.
         function phoneticFold(value) {
             let s = String(value || '').toLowerCase().trim();
             if (!s) return '';
@@ -1845,38 +1847,87 @@
                 .replace(/dh/g, 'd')
                 .replace(/bh/g, 'b')
                 .replace(/jh/g, 'j')
-                .replace(/sh/g, 's')
-                .replace(/ch/g, 's')
                 .replace(/x/g, 'ks')
                 .replace(/z/g, 's')
-                .replace(/v/g, 'w')      // v<->w collapse
-                .replace(/y/g, 'i')      // murthy/murthi
+                .replace(/v/g, 'w')      // v<->w collapse (common Indian mishear)
+                .replace(/([^aeiou])y$/g, '$1i')  // trailing consonant+y → +i
                 .replace(/ee/g, 'i')
-                .replace(/oo/g, 'u')
-                .replace(/ai/g, 'a')
-                .replace(/ou/g, 'u');
+                .replace(/oo/g, 'u');
             s = s.replace(/(.)\1+/g, '$1');           // collapse doubles
             s = s.replace(/^h(?=[aeiou])/, '');       // drop soft leading H
-            const head = s[0];
-            const tail = s.slice(1).replace(/[aeiou]/g, ''); // Soundex-like skeleton
-            return head + tail;
+            return s;
+        }
+
+        // Aggressive Soundex-like consonant skeleton. VERY lossy — only use as a
+        // tie-breaker signal, and never for anything shorter than 6 chars, or it
+        // will collapse "maths"/"mitun"/"metro" into near-identical strings.
+        function phoneticSkeleton(value) {
+            const folded = phoneticFold(value);
+            if (!folded) return '';
+            return folded[0] + folded.slice(1).replace(/[aeiou]/g, '');
         }
 
         // Blended similarity — best of Levenshtein, Dice, phonetic-folded Lev.
-        // Returns 0–100. A small substring bonus catches "cn" inside "dbms cn lab".
+        // Length-aware: short strings (< 5 chars) get NO fuzzy tolerance, only
+        // exact / prefix / suffix.  This kills the "maths → mithun" class of
+        // false positives that plagued the previous engine.
         function hybridSimilarityPct(a, b) {
             const s1 = String(a || '').toLowerCase().replace(/\s+/g, '');
             const s2 = String(b || '').toLowerCase().replace(/\s+/g, '');
             if (!s1 || !s2) return 0;
-            const lev  = levenshteinSimilarityPct(s1, s2);
-            const dice = diceCoefficientPct(s1, s2);
-            const phon = levenshteinSimilarityPct(phoneticFold(s1), phoneticFold(s2));
-            let contain = 0;
-            if (s1.length >= 3 && s2.length >= 3) {
-                if (s2.includes(s1)) contain = Math.min(96, 60 + s1.length * 4);
-                else if (s1.includes(s2)) contain = Math.min(92, 55 + s2.length * 4);
+            if (s1 === s2) return 100;
+
+            const minLen = Math.min(s1.length, s2.length);
+            const maxLen = Math.max(s1.length, s2.length);
+
+            // Hard gate for very short strings: only substring/prefix accepted.
+            if (minLen <= 3 || maxLen <= 3) {
+                if (s2.includes(s1) || s1.includes(s2)) return 88;
+                return 0;
             }
-            return Math.max(lev, dice, phon, contain);
+
+            // Big length mismatch → decay the ceiling.  Prevents "prog" from
+            // fuzzily matching "programming" or "programminginc" too loosely.
+            const lengthRatio = minLen / maxLen; // 0…1
+            const lengthPenalty = lengthRatio < 0.5 ? 12
+                                 : lengthRatio < 0.7 ? 6
+                                 : 0;
+
+            const levRaw   = levenshteinSimilarityPct(s1, s2);
+            const dice     = diceCoefficientPct(s1, s2);
+            const foldA    = phoneticFold(s1);
+            const foldB    = phoneticFold(s2);
+            const phonFold = levenshteinSimilarityPct(foldA, foldB);
+
+            // Skeleton signal is only meaningful for longer strings.
+            let phonSkel = 0;
+            if (minLen >= 6) {
+                phonSkel = levenshteinSimilarityPct(phoneticSkeleton(s1), phoneticSkeleton(s2));
+                // Cap skeleton influence – it's the lossiest signal.
+                phonSkel = Math.min(phonSkel, 82);
+            }
+
+            // Substring bonus – both sides must be long enough to be meaningful.
+            let contain = 0;
+            if (minLen >= 4) {
+                if (s2.includes(s1)) contain = Math.min(94, 60 + s1.length * 3);
+                else if (s1.includes(s2)) contain = Math.min(90, 55 + s2.length * 3);
+            }
+
+            // Bigram (Dice) and phonetic-fold both need a minimum length to be trusted.
+            const diceEff = minLen >= 5 ? dice     : Math.min(dice, 70);
+            const phonEff = minLen >= 5 ? phonFold : Math.min(phonFold, 70);
+
+            const raw = Math.max(levRaw, diceEff, phonEff, phonSkel, contain);
+            return Math.max(0, raw - lengthPenalty);
+        }
+
+        // Same-first-letter guardrail. Voice recognition rarely hallucinates
+        // the initial phoneme, so a mismatch there is a strong "no" signal.
+        function shareInitialLetter(a, b) {
+            const c1 = String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '')[0];
+            const c2 = String(b || '').toLowerCase().replace(/[^a-z0-9]/g, '')[0];
+            return c1 && c2 && c1 === c2;
         }
         // ═══════════════════════════════════════════════════════════════════════
         // END fuzzy matching engine
@@ -1900,8 +1951,10 @@
             return [...aliases].filter(Boolean);
         }
 
-        // Upgraded: after all rule-based signals, layer in the local hybrid
-        // fuzzy engine so "dee bee em ess" or "programing in see" still resolves.
+        // Upgraded scoring with strict gates. Layers in the hybrid fuzzy engine
+        // AFTER rule-based signals, but only when both strings are long enough
+        // and share an initial letter — so "programming in c" no longer collapses
+        // into "disc maths" via lossy phonetic similarity.
         function scoreSubjectMatch(queryText, entry) {
             const qNorm = simplifySubjectSearchText(queryText);
             const qCompact = compactSubjectSearchText(queryText);
@@ -1918,22 +1971,34 @@
                 // Never let a bare subject query auto-resolve to the "…LAB" variant.
                 const isLabAlias = /\blab\b/.test(aliasNorm);
                 if (isLabAlias && !/\blab\b/.test(qNorm) && aliasNorm !== qNorm) return;
-                if (qNorm.includes(aliasNorm) && aliasCompact.length >= 2) bestScore = Math.max(bestScore, 85);
-                if (aliasNorm.startsWith(qNorm + ' ') && qNorm.length >= 3) bestScore = Math.max(bestScore, 70);
-                if (aliasNorm.includes(qNorm) && qNorm.length >= 3) bestScore = Math.max(bestScore, 65);
+                if (qNorm.includes(aliasNorm) && aliasCompact.length >= 3) bestScore = Math.max(bestScore, 88);
+                if (aliasNorm.startsWith(qNorm + ' ') && qNorm.length >= 3) bestScore = Math.max(bestScore, 72);
+                if (aliasNorm.includes(qNorm) && qNorm.length >= 4) bestScore = Math.max(bestScore, 68);
 
                 const qWords = qNorm.split(' ').filter(Boolean);
                 const aliasWords = aliasNorm.split(' ').filter(Boolean);
                 if (qWords.length && qWords.every(word => aliasWords.includes(word))) {
-                    bestScore = Math.max(bestScore, qWords.length === aliasWords.length ? 92 : 62);
+                    bestScore = Math.max(bestScore, qWords.length === aliasWords.length ? 94 : 62);
                 }
 
-                // ── NEW: hybrid phonetic + Levenshtein + Dice fallback ─────────
-                if (aliasCompact.length >= 2 && qCompact.length >= 2) {
-                    const sim = hybridSimilarityPct(qCompact, aliasCompact);
-                    // Cap boosts for LAB aliases to avoid drifting a plain "DBMS"
-                    // query into "DBMS LAB" via string similarity alone.
-                    bestScore = Math.max(bestScore, isLabAlias ? Math.min(sim, 75) : sim);
+                // ── Gated hybrid fuzzy fallback ─────────────────────────────────
+                // Only trust fuzzy for reasonably long strings that share an
+                // initial letter. Short strings (dbms, os, cn) rely purely on
+                // the rule-based signals above.
+                if (aliasCompact.length >= 4 && qCompact.length >= 4 &&
+                    shareInitialLetter(qCompact, aliasCompact)) {
+                    const minL = Math.min(qCompact.length, aliasCompact.length);
+                    const maxL = Math.max(qCompact.length, aliasCompact.length);
+                    if (minL / maxL >= 0.55) {
+                        const sim = hybridSimilarityPct(qCompact, aliasCompact);
+                        // Cap LAB aliases so "DBMS" stays at DBMS, not DBMS LAB.
+                        const capped = isLabAlias ? Math.min(sim, 74) : sim;
+                        // Fuzzy alone (no exact/substring hit) must clear 78 to
+                        // register — prevents cross-subject bleed-through.
+                        if (capped >= 78 || bestScore >= 80) {
+                            bestScore = Math.max(bestScore, capped);
+                        }
+                    }
                 }
             });
 
@@ -2074,45 +2139,87 @@
             });
         }
 
-        // Upgraded: blends legacy exact/substring rules with the local phonetic + fuzzy
-        // engine so that mishears like "Rajamoorthi" match "Rajamoorthy" (~90%+).
+        // Common English/query words that must never be treated as faculty tokens.
+        // Prevents "programming" from firing the faculty branch on RAMYA etc.
+        const FACULTY_TOKEN_BLOCKLIST = new Set([
+            'programming','program','programing','programme','maths','math','mathematics',
+            'discrete','computational','constitution','english','hindi','kannada','sanskrit',
+            'sanskrith','python','java','cloud','crypto','cryptography','database','databases',
+            'network','networks','devops','operating','system','systems','software','engineering',
+            'analysis','design','algorithms','algorithm','structure','structures','data','web',
+            'lab','labs','lecture','lectures','class','classes','period','room','faculty',
+            'subject','subjects','today','tomorrow','sharp','csharp'
+        ]);
+
+        // Upgraded scoring: blends legacy exact/substring rules with the local
+        // phonetic + fuzzy engine, but enforces strict gates so common English
+        // words never fuzzily resolve to a faculty surname.
         function scoreFacultyCandidate(rawInputText, candidate) {
             const cleanedQuery = normalizeFacultySearchText(rawInputText);
             const compactQuery = compactFacultySearchText(cleanedQuery);
             const compactRaw   = compactFacultySearchText(rawInputText);
             if (!compactQuery && !compactRaw) return 0;
+
             let score = 0;
             candidate.aliases.forEach(alias => {
                 const aliasCompact = compactFacultySearchText(alias);
-                if (!aliasCompact || aliasCompact.length < 2) return;
+                if (!aliasCompact || aliasCompact.length < 3) return;
 
-                // ── Legacy exact / substring signals ────────────────────────────
+                // ── Legacy exact / substring signals (unchanged) ────────────────
                 if (compactQuery === aliasCompact) score = Math.max(score, 100);
-                if (aliasCompact.length >= 4 && compactRaw.includes(aliasCompact)) score = Math.max(score, 90);
-                if (compactQuery.length >= 3 && aliasCompact.includes(compactQuery)) score = Math.max(score, 84);
-                if (compactQuery.length >= 4 && compactQuery.includes(aliasCompact)) score = Math.max(score, 78);
-                if (/^[a-z]{2,8}$/i.test(candidate.code) && compactRaw.includes(compactFacultySearchText(candidate.code))) score = Math.max(score, 88);
+                if (aliasCompact.length >= 4 && compactRaw.includes(aliasCompact)) score = Math.max(score, 92);
+                if (compactQuery.length >= 4 && aliasCompact.includes(compactQuery) && compactQuery.length / aliasCompact.length >= 0.6) {
+                    score = Math.max(score, 86);
+                }
+                if (compactQuery.length >= 5 && compactQuery.includes(aliasCompact) && aliasCompact.length / compactQuery.length >= 0.6) {
+                    score = Math.max(score, 80);
+                }
+                if (/^[a-z]{2,8}$/i.test(candidate.code) && compactRaw.includes(compactFacultySearchText(candidate.code))) {
+                    score = Math.max(score, 90);
+                }
 
-                // ── NEW: hybrid fuzzy + phonetic similarity on the alias ───────
-                // Compare the alias against both the noise-stripped query and the
-                // full raw query, and against every word-token of the query so a
-                // single misheard first name inside a sentence still matches.
-                if (aliasCompact.length >= 3) {
-                    const simAgainstClean = hybridSimilarityPct(compactQuery, aliasCompact);
-                    const simAgainstRaw   = hybridSimilarityPct(compactRaw,   aliasCompact);
-                    score = Math.max(score, simAgainstClean, simAgainstRaw);
+                // ── Token-level fuzzy pass with strict gates ────────────────────
+                // Only run per-token similarity when we can trust it: the token
+                // must be a plausible name (>=4 chars, not a common English/subject
+                // word), and the fuzzy score must clear a higher floor than
+                // whole-string matches to count.
+                const tokens = String(cleanedQuery || '').split(/\s+/).filter(t => t.length >= 4);
+                tokens.forEach(tok => {
+                    const tokLower = tok.toLowerCase();
+                    if (FACULTY_TOKEN_BLOCKLIST.has(tokLower)) return;
 
-                    // Token-level: catches "when is rajamoorthi class" (raw query
-                    // contains stop words that dilute whole-string similarity).
-                    const tokens = String(cleanedQuery || '').split(/\s+/).filter(t => t.length >= 3);
-                    tokens.forEach(tok => {
-                        const tokCompact = compactFacultySearchText(tok);
-                        if (tokCompact.length < 3) return;
-                        const tokSim = hybridSimilarityPct(tokCompact, aliasCompact);
-                        // Slight de-emphasis of single-token matches so a full-name
-                        // exact hit still beats a partial one.
-                        if (tokSim > score - 4) score = Math.max(score, Math.round(tokSim * 0.98));
-                    });
+                    const tokCompact = compactFacultySearchText(tok);
+                    if (tokCompact.length < 4) return;
+
+                    // Initial-letter guardrail: STT rarely gets the first phoneme
+                    // wrong. If the initials don't match we do not fuzzy-score.
+                    if (!shareInitialLetter(tokCompact, aliasCompact)) return;
+
+                    // Require some length parity — a 4-letter token shouldn't be
+                    // allowed to match a 10-letter surname via fuzzy tricks alone.
+                    const minL = Math.min(tokCompact.length, aliasCompact.length);
+                    const maxL = Math.max(tokCompact.length, aliasCompact.length);
+                    if (minL / maxL < 0.55) return;
+
+                    const tokSim = hybridSimilarityPct(tokCompact, aliasCompact);
+                    // Token evidence must be strong (>=80%) to raise faculty score;
+                    // below that it's too easy to trigger cross-name confusions
+                    // (e.g. "rekhs" vs "rekha" vs "rakshitha").
+                    if (tokSim >= 80) {
+                        score = Math.max(score, Math.round(tokSim * 0.96));
+                    }
+                });
+
+                // Whole-query similarity — only meaningful if lengths are close
+                // and initials match. Prevents "programming" ~ "ramya" style hits.
+                if (aliasCompact.length >= 5 && compactQuery.length >= 5 &&
+                    shareInitialLetter(compactQuery, aliasCompact)) {
+                    const minL = Math.min(compactQuery.length, aliasCompact.length);
+                    const maxL = Math.max(compactQuery.length, aliasCompact.length);
+                    if (minL / maxL >= 0.6) {
+                        const sim = hybridSimilarityPct(compactQuery, aliasCompact);
+                        if (sim >= 82) score = Math.max(score, Math.round(sim * 0.97));
+                    }
                 }
             });
             return Math.min(100, score);
@@ -2335,17 +2442,38 @@
                 return;
             }
 
+            // ── Subject-first arbitration ───────────────────────────────────────
+            // We score subjects BEFORE running the faculty branch so a phrase
+            // like "programming in c" doesn't leak into a fuzzy faculty guess
+            // (which used to hit RAMYA/MITHUN via lossy phonetic similarity).
+            const preSubjectQuery = extractSubjectQueryFromInput(rawInputText);
+            const preSubjectCandidates = preSubjectQuery ? scoreAllSubjectCandidates(preSubjectQuery) : [];
+            const topSubjectScore = preSubjectCandidates[0] ? preSubjectCandidates[0].score : 0;
+
             // ── Faculty name queries, e.g. "When is Rajamoorthy class today?" ──
-            // NOTE: findFacultyMatchesFromQuery now uses the local phonetic +
-            // Levenshtein/Dice engine. When the top score is in the "ask" band
-            // (60–84%) we surface tap-to-confirm chips instead of guessing.
+            // Only fire the faculty branch when the query looks like it names a
+            // person. We now enforce: (a) subject-first (skip faculty if a
+            // subject already scores well), (b) strict top-1 vs top-2 gap for
+            // auto-resolve, so "rekhs chandra" cannot silently pick between
+            // "Rekha Chandra" and "Rakshitha".
             const facultyMatches = findFacultyMatchesFromQuery(rawInputText);
             const facultyIntent = q.match(/\b(when|class|classes|period|lecture|schedule|timetable|today|tomorrow|tommorrow|tomorow|tmrw|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
-            if (facultyMatches.length && facultyIntent) {
-                const topFacScore = facultyMatches[0].score;
+            const topFacultyScore = facultyMatches.length ? facultyMatches[0].score : 0;
+            const runnerFacultyScore = facultyMatches[1] ? facultyMatches[1].score : 0;
 
+            // Skip faculty branch entirely if a subject match is at least as
+            // strong — subject queries beat faculty queries in the tie zone.
+            const subjectBeatsFaculty = topSubjectScore >= 80 && topSubjectScore >= topFacultyScore - 5;
+
+            if (facultyMatches.length && facultyIntent && !subjectBeatsFaculty) {
                 // Ambiguous cluster – ask before answering.
-                if (topFacScore < FUZZY_CONF_AUTO && topFacScore >= FUZZY_CONF_ASK_LOW) {
+                //   * top score in ASK band, OR
+                //   * top is high but runner-up is within 6 pts (two names look alike)
+                const closeRunnerUp = topFacultyScore >= FUZZY_CONF_AUTO &&
+                                      runnerFacultyScore >= topFacultyScore - 6 &&
+                                      facultyMatches[0].code !== (facultyMatches[1] && facultyMatches[1].code);
+
+                if ((topFacultyScore < FUZZY_CONF_AUTO && topFacultyScore >= FUZZY_CONF_ASK_LOW) || closeRunnerUp) {
                     surfaceFuzzyAmbiguity(
                         'faculty',
                         facultyMatches.map(m => ({ label: (m.name || m.code), score: m.score })),
@@ -2354,19 +2482,23 @@
                     return;
                 }
 
-                // High-confidence path – auto-resolve.
-                const confidentMatches = facultyMatches.filter(m => m.score >= FUZZY_CONF_AUTO);
-                const resolvedMatches  = confidentMatches.length ? confidentMatches : facultyMatches;
-                const facultyDay  = targetedDayKeyword || '';
-                const facultyHits = findFacultyClassHits(resolvedMatches, facultyDay);
-                const facultyName = facultyDisplayNameFromMatches(resolvedMatches);
-                const scope = facultyDay ? ` on <b>${facultyDay}</b>` : ' this week';
-                if (!facultyHits.length) {
-                    appendMessageBubble(`No class found for <b>${facultyName}</b>${scope} in <b>${localSelectedSection}</b>.`, 'ai');
+                if (topFacultyScore >= FUZZY_CONF_AUTO) {
+                    // High-confidence path – but only pass the top match through
+                    // (not the whole cluster). This avoids answering with both
+                    // RekhaChandra and Rakshitha when they cluster near the top.
+                    const resolvedMatches = [facultyMatches[0]];
+                    const facultyDay  = targetedDayKeyword || '';
+                    const facultyHits = findFacultyClassHits(resolvedMatches, facultyDay);
+                    const facultyName = facultyDisplayNameFromMatches(resolvedMatches);
+                    const scope = facultyDay ? ` on <b>${facultyDay}</b>` : ' this week';
+                    if (!facultyHits.length) {
+                        appendMessageBubble(`No class found for <b>${facultyName}</b>${scope} in <b>${localSelectedSection}</b>.`, 'ai');
+                        return;
+                    }
+                    appendMessageBubble(`<b>${facultyName}</b> has ${facultyHits.length} class${facultyHits.length !== 1 ? 'es' : ''}${scope} for <b>${localSelectedSection}</b>:`, 'ai', buildFacultyHitList(facultyHits, 'emerald'));
                     return;
                 }
-                appendMessageBubble(`<b>${facultyName}</b> has ${facultyHits.length} class${facultyHits.length !== 1 ? 'es' : ''}${scope} for <b>${localSelectedSection}</b>:`, 'ai', buildFacultyHitList(facultyHits, 'emerald'));
-                return;
+                // otherwise fall through — score too low, let subject/day handlers try
             }
 
             // ── Count of classes on a day ────────────────────────────────────────
