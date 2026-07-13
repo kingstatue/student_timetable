@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -260,6 +260,8 @@
                         <p>• Today what time DBMS lab?</p>
                         <p>• What time C sharp?</p>
                         <p>• Who teaches DBMS?</p>
+                        <p>• Do I have classes today?</p>
+                        <p>• When is Rajamoorthy class today?</p>
                         <p>• When is maths?</p>
                     </div>
                 </div>
@@ -433,6 +435,7 @@
         }
 
         function confirmSectionYes() {
+            primeSpeechOutputOnUserGesture();
             document.getElementById('pin-confirm-modal').classList.add('hidden');
             unlockSection(loginPendingSection);
             loginPendingSection = '';
@@ -445,8 +448,12 @@
             showLoginScreen();
         }
 
+        const APP_BUILD_VERSION = '2026-07-13-speech-ai-faculty-v4';
+        let serviceWorkerRefreshInProgress = false;
+
         document.addEventListener("DOMContentLoaded", async () => {
             window.lucide = window.lucide || { createIcons() {} };
+            bindSpeechWarmupGestures();
             await registerOfflineServiceWorker();
             await bootstrapTimetableEngine();
             initVoiceAssistant();
@@ -456,16 +463,48 @@
         async function registerOfflineServiceWorker() {
             if (!('serviceWorker' in navigator)) return;
             try {
-                await navigator.serviceWorker.register('./sw.js');
+                const registration = await navigator.serviceWorker.register(`./sw.js?v=${APP_BUILD_VERSION}`, {
+                    scope: './',
+                    updateViaCache: 'none'
+                });
+
+                const reloadForFreshApp = () => {
+                    if (serviceWorkerRefreshInProgress) return;
+                    serviceWorkerRefreshInProgress = true;
+                    window.location.reload();
+                };
+
+                navigator.serviceWorker.addEventListener('controllerchange', reloadForFreshApp);
+                navigator.serviceWorker.addEventListener('message', event => {
+                    if (event.data?.type === 'APP_UPDATED') reloadForFreshApp();
+                });
+
+                if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    if (!newWorker) return;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            newWorker.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    });
+                });
+
+                await registration.update();
+                window.addEventListener('focus', () => registration.update().catch(() => {}));
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) registration.update().catch(() => {});
+                });
             } catch (error) {
                 console.warn('Offline service worker registration failed:', error);
             }
         }
 
         async function fetchTextWithOfflineFallback(url) {
-            const runtimeCacheName = 'mgm-student-portal-offline-v4';
+            const runtimeCacheName = `mgm-student-portal-runtime-${APP_BUILD_VERSION}`;
             try {
-                const response = await fetch(url, { cache: 'default' });
+                const response = await fetch(url, { cache: 'no-store' });
                 if (!response.ok) throw new Error(`Could not retrieve ${url}`);
                 if ('caches' in window) {
                     caches.open(runtimeCacheName)
@@ -475,7 +514,7 @@
                 return await response.text();
             } catch (networkError) {
                 if ('caches' in window) {
-                    const cachedResponse = await caches.match(url);
+                    const cachedResponse = await caches.match(url, { ignoreSearch: true });
                     if (cachedResponse) return await cachedResponse.text();
                 }
                 throw networkError;
@@ -565,6 +604,7 @@
 
         // Apply section to UI without PIN check (called after unlock)
         function unlockSection(section) {
+            primeSpeechOutputOnUserGesture();
             markSectionUnlocked(section);
             localSelectedSection = section;
             localStorage.setItem('student_selected_section', section);
@@ -1017,8 +1057,73 @@
         let isVoiceListening = false;
         let voiceRepliesEnabled = localStorage.getItem('ai_voice_replies') === '1';
         let finalVoiceTranscript = '';
+        let speechOutputPrimed = false;
+        let speechKeepAliveTimer = null;
+        const INDIAN_SPEECH_LOCALE = 'en-IN';
+        const FALLBACK_SPEECH_LOCALE = 'en-US';
+        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en-in', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
+        let preferredIndianVoice = null;
+
+        function loadPreferredIndianVoice() {
+            if (!('speechSynthesis' in window)) return null;
+            const voices = window.speechSynthesis.getVoices() || [];
+            preferredIndianVoice =
+                voices.find(voice => String(voice.lang || '').toLowerCase() === INDIAN_SPEECH_LOCALE.toLowerCase()) ||
+                voices.find(voice => INDIAN_VOICE_KEYWORDS.some(keyword =>
+                    `${voice.name || ''} ${voice.lang || ''}`.toLowerCase().includes(keyword)
+                )) ||
+                voices.find(voice => String(voice.lang || '').toLowerCase().startsWith('en-')) ||
+                voices[0] ||
+                null;
+            return preferredIndianVoice;
+        }
+
+        function initIndianSpeechVoice() {
+            if (!('speechSynthesis' in window)) return;
+            loadPreferredIndianVoice();
+            window.speechSynthesis.onvoiceschanged = loadPreferredIndianVoice;
+        }
+
+        function primeSpeechOutputOnUserGesture() {
+            if (speechOutputPrimed || !('speechSynthesis' in window)) return;
+            try {
+                initIndianSpeechVoice();
+                const unlockUtterance = new SpeechSynthesisUtterance(' ');
+                const indianVoice = preferredIndianVoice || loadPreferredIndianVoice();
+                unlockUtterance.lang = indianVoice?.lang || INDIAN_SPEECH_LOCALE;
+                if (indianVoice) unlockUtterance.voice = indianVoice;
+                unlockUtterance.volume = 0;
+                unlockUtterance.rate = 1;
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.speak(unlockUtterance);
+                window.speechSynthesis.resume();
+                speechOutputPrimed = true;
+            } catch (error) {
+                speechOutputPrimed = false;
+            }
+        }
+
+        function bindSpeechWarmupGestures() {
+            ['pointerdown', 'touchend', 'keydown'].forEach(eventName => {
+                document.addEventListener(eventName, primeSpeechOutputOnUserGesture, { once: true, passive: true });
+            });
+        }
+
+        function startSpeechKeepAlive() {
+            clearInterval(speechKeepAliveTimer);
+            if (!('speechSynthesis' in window)) return;
+            speechKeepAliveTimer = setInterval(() => {
+                if (window.speechSynthesis.speaking) window.speechSynthesis.resume();
+            }, 3000);
+        }
+
+        function stopSpeechKeepAlive() {
+            clearInterval(speechKeepAliveTimer);
+            speechKeepAliveTimer = null;
+        }
 
         function initVoiceAssistant() {
+            initIndianSpeechVoice();
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const micButton = document.getElementById('voice-input-button');
             const replyButton = document.getElementById('voice-reply-button');
@@ -1028,8 +1133,7 @@
                 setVoiceStatus('Voice input is not supported here. Use Chrome/Edge, allow microphone, and open from HTTPS/local preview.');
             } else {
                 speechRecognition = new SpeechRecognition();
-                // en-US is the most reliable Web Speech recognition locale; it still understands Indian English well.
-                speechRecognition.lang = 'en-US';
+                speechRecognition.lang = INDIAN_SPEECH_LOCALE;
                 speechRecognition.interimResults = true;
                 speechRecognition.continuous = false;
                 speechRecognition.maxAlternatives = 3;
@@ -1038,7 +1142,7 @@
                     finalVoiceTranscript = '';
                     isVoiceListening = true;
                     setVoiceButtonListening(true);
-                    setVoiceStatus('Listening now. Speak after tapping the mic.');
+                    setVoiceStatus('Listening now. Speak your question.');
                 };
 
                 speechRecognition.onresult = (event) => {
@@ -1062,6 +1166,11 @@
 
                 speechRecognition.onerror = (event) => {
                     const error = event.error || 'unknown';
+                    if (error === 'language-not-supported' && speechRecognition.lang !== FALLBACK_SPEECH_LOCALE) {
+                        speechRecognition.lang = FALLBACK_SPEECH_LOCALE;
+                        setVoiceStatus('Indian English voice input is not supported on this device. Retrying with English.');
+                        return;
+                    }
                     const help = {
                         'no-speech': 'No speech was detected. Tap mic, wait for Listening, then speak close to the phone.',
                         'audio-capture': 'No microphone was found. Check mic permission and device microphone.',
@@ -1106,27 +1215,32 @@
 
         async function toggleVoiceInput() {
             if (!speechRecognition) return;
+            primeSpeechOutputOnUserGesture();
             if (isVoiceListening) {
                 speechRecognition.stop();
-            } else {
-                const allowed = await ensureMicrophonePermission();
-                if (!allowed) return;
-                try {
-                    window.speechSynthesis?.cancel();
-                    finalVoiceTranscript = '';
-                    speechRecognition.start();
-                } catch (error) {
-                    setVoiceStatus('Voice listener is already starting. Wait a moment and tap again.');
-                }
+                return;
+            }
+            try {
+                window.speechSynthesis?.cancel();
+                stopSpeechKeepAlive();
+                finalVoiceTranscript = '';
+                setVoiceStatus('Starting listener...');
+                speechRecognition.start();
+            } catch (error) {
+                setVoiceStatus('Voice listener is already starting. Wait a moment and tap again.');
             }
         }
 
         function toggleVoiceReplies() {
+            primeSpeechOutputOnUserGesture();
             voiceRepliesEnabled = !voiceRepliesEnabled;
             localStorage.setItem('ai_voice_replies', voiceRepliesEnabled ? '1' : '0');
             updateVoiceReplyButton();
-            setVoiceStatus(voiceRepliesEnabled ? 'Spoken replies enabled.' : 'Spoken replies muted.');
-            if (!voiceRepliesEnabled) window.speechSynthesis?.cancel();
+            setVoiceStatus(voiceRepliesEnabled ? 'Indian English spoken replies enabled.' : 'Spoken replies muted.');
+            if (!voiceRepliesEnabled) {
+                window.speechSynthesis?.cancel();
+                stopSpeechKeepAlive();
+            }
         }
 
         function updateVoiceReplyButton() {
@@ -1134,7 +1248,7 @@
             if (!replyButton) return;
             replyButton.classList.toggle('ring-2', voiceRepliesEnabled);
             replyButton.classList.toggle('ring-amber-300', voiceRepliesEnabled);
-            replyButton.title = voiceRepliesEnabled ? 'Spoken replies on' : 'Spoken replies off';
+            replyButton.title = voiceRepliesEnabled ? 'Indian English spoken replies on' : 'Spoken replies off';
         }
 
         function setVoiceButtonListening(active) {
@@ -1154,6 +1268,7 @@
         function stopAssistantSpeech() {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
+                stopSpeechKeepAlive();
             }
             if (speechRecognition && isVoiceListening) {
                 try { speechRecognition.abort(); } catch (error) {}
@@ -1277,10 +1392,19 @@
                 .trim();
             if (!plainText) return;
             window.speechSynthesis.cancel();
+            stopSpeechKeepAlive();
             const utterance = new SpeechSynthesisUtterance(plainText);
-            utterance.lang = 'en-IN';
-            utterance.rate = 0.95;
+            const indianVoice = preferredIndianVoice || loadPreferredIndianVoice();
+            utterance.lang = indianVoice?.lang || INDIAN_SPEECH_LOCALE;
+            if (indianVoice) utterance.voice = indianVoice;
+            utterance.rate = 0.92;
+            utterance.pitch = 1;
+            utterance.onstart = startSpeechKeepAlive;
+            utterance.onend = stopSpeechKeepAlive;
+            utterance.onerror = stopSpeechKeepAlive;
             window.speechSynthesis.speak(utterance);
+            setTimeout(() => window.speechSynthesis.resume(), 0);
+            setTimeout(() => window.speechSynthesis.resume(), 250);
         }
 
         function getAssistantExamplePromptsHTML() {
@@ -1651,7 +1775,7 @@
             return simplifySubjectSearchText(
                 String(rawInputText || '')
                     .replace(/\bat\s+\d{1,2}(?:[:.]\d{1,2})?\b/gi, ' ')
-                    .replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ')
+                    .replace(/\b(today|tomorrow|tommorrow|tomorow|tmrw|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, ' ')
                     .replace(/what\s+time|when\s+is|when|who\s+teaches|who\s+teach(?:es)?|who\s+is\s+(?:the\s+)?teacher|teacher\s+for|faculty\s+of|instructor\s+of|staff\s+for/gi, ' ')
                     .replace(/where\s+is|which\s+room|room\s+for|in\s+which\s+room|location\s+of/gi, ' ')
                     .replace(/\b(show|tell|me|please|my|the|class|classes|lecture|period|schedule|timetable|subject|for|on|is|are)\b/gi, ' ')
@@ -1737,6 +1861,158 @@
             return results;
         }
 
+        function normalizeFacultySearchText(value) {
+            const stopWords = new Set([
+                'today','tomorrow','tommorrow','tomorow','tmrw','monday','tuesday','wednesday','thursday','friday','saturday','sunday',
+                'mon','tue','tues','wed','thu','thur','thurs','fri','sat','sun','sir','madam','maam','mam','prof','professor','teacher',
+                'faculty','staff','class','classes','period','periods','lecture','lectures','schedule','timetable','when','what','time',
+                'timing','timings','is','are','do','does','did','i','we','you','have','has','any','please','tell','show','find','me',
+                'my','our','on','for','of','the','by','with','in','at','to','from','section','room','where','who','which','about','details',
+                'will','there','available','upcoming','next','first','last','this','week','day','date','subject','subjects','name','college',
+                'mgm','bca','bsc','ba','sem','semester','dr','mr','ms','mrs','miss','shri','smt','kum','and','or','a','an'
+            ]);
+            return String(value || '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, ' ')
+                .split(/\s+/)
+                .filter(word => word.length > 2 && !stopWords.has(word) && !/^\d+$/.test(word))
+                .join(' ')
+                .trim();
+        }
+
+        function compactFacultySearchText(value) {
+            return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+        }
+
+        function facultyAliasList(code, name) {
+            const aliases = new Set([code, name]);
+            String(name || '').split(/\s+/).forEach(part => {
+                const clean = part.replace(/[^A-Za-z0-9]/g, '');
+                if (clean.length >= 3) aliases.add(clean);
+            });
+            const noSpaces = compactFacultySearchText(name);
+            if (noSpaces.length >= 4) aliases.add(noSpaces);
+            return [...aliases].filter(Boolean);
+        }
+
+        function getFacultyCandidates() {
+            const staff = (timetableDatabase && timetableDatabase.staffNames) || {};
+            const facultyKeys = Object.keys((timetableDatabase && timetableDatabase.faculty) || {});
+            const codes = new Set([...Object.keys(staff), ...facultyKeys]);
+            return [...codes].map(code => {
+                const name = staff[code] || code;
+                return { code, name, aliases: facultyAliasList(code, name) };
+            });
+        }
+
+        function scoreFacultyCandidate(rawInputText, candidate) {
+            const cleanedQuery = normalizeFacultySearchText(rawInputText);
+            const compactQuery = compactFacultySearchText(cleanedQuery);
+            const compactRaw = compactFacultySearchText(rawInputText);
+            if (!compactQuery && !compactRaw) return 0;
+            let score = 0;
+            candidate.aliases.forEach(alias => {
+                const aliasCompact = compactFacultySearchText(alias);
+                if (!aliasCompact || aliasCompact.length < 2) return;
+                if (compactQuery === aliasCompact) score = Math.max(score, 100);
+                if (aliasCompact.length >= 4 && compactRaw.includes(aliasCompact)) score = Math.max(score, 90);
+                if (compactQuery.length >= 3 && aliasCompact.includes(compactQuery)) score = Math.max(score, 84);
+                if (compactQuery.length >= 4 && compactQuery.includes(aliasCompact)) score = Math.max(score, 78);
+                if (/^[a-z]{2,8}$/i.test(candidate.code) && compactRaw.includes(compactFacultySearchText(candidate.code))) score = Math.max(score, 88);
+            });
+            return score;
+        }
+
+        function findFacultyMatchesFromQuery(rawInputText) {
+            const candidates = getFacultyCandidates()
+                .map(candidate => ({ ...candidate, score: scoreFacultyCandidate(rawInputText, candidate) }))
+                .filter(candidate => candidate.score >= 72)
+                .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+            if (!candidates.length) return [];
+            const best = candidates[0].score;
+            return candidates.filter(candidate => candidate.score >= Math.max(72, best - 8)).slice(0, 3);
+        }
+
+        function splitFacultyCodeList(facultyCodes) {
+            return String(facultyCodes || '')
+                .split(/\s*\+\s*/)
+                .map(code => code.trim())
+                .filter(code => code && code !== '—');
+        }
+
+        function facultyCodesMatch(codes, facultyMatches) {
+            const matchCodes = new Set(facultyMatches.map(match => String(match.code || '').trim()).filter(Boolean));
+            return splitFacultyCodeList(codes).some(code => matchCodes.has(code));
+        }
+
+        function findFacultyClassHits(facultyMatches, dayName = '') {
+            const days = dayName ? [dayName] : ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const hits = [];
+            const seen = new Set();
+
+            days.forEach(day => {
+                if (day === 'Sunday') return;
+                getSectionScheduleForDay(day, localSelectedSection).forEach(item => {
+                    const entries = getSubjectEntriesForDisplay(item);
+                    let matchedEntry = false;
+
+                    entries.forEach((entry, index) => {
+                        const facultyCodes = getFacultyCodesForSubjectEntry(item, entry, index, entries);
+                        if (facultyCodesMatch(facultyCodes, facultyMatches)) {
+                            const key = `${day}|${item.slot}|${entry.subjectKey}|${facultyCodes}`;
+                            if (!seen.has(key)) {
+                                seen.add(key);
+                                hits.push({ day, item, entry, entryIndex: index, entries, facultyCodes });
+                            }
+                            matchedEntry = true;
+                        }
+                    });
+
+                    if (!matchedEntry && facultyCodesMatch(item.faculty, facultyMatches)) {
+                        const fallbackEntry = entries[0] || {
+                            subject: getSubjectDisplay(item),
+                            subjectKey: normalizeSubjectKey(getSubjectDisplay(item)),
+                            room: getRoomsDisplay(item)
+                        };
+                        const key = `${day}|${item.slot}|${fallbackEntry.subjectKey}|${item.faculty}`;
+                        if (!seen.has(key)) {
+                            seen.add(key);
+                            hits.push({ day, item, entry: fallbackEntry, entryIndex: 0, entries, facultyCodes: item.faculty });
+                        }
+                    }
+                });
+            });
+
+            return hits.sort((a, b) => {
+                const dayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day) || compareScheduleItemsBySlot(a.item, b.item);
+            });
+        }
+
+        function buildFacultyHitCard(hit, color = 'emerald') {
+            const facultyDisplay = getFacultyDisplay(hit.facultyCodes);
+            const room = hit.entry.room || getRoomsDisplay(hit.item);
+            return `
+                <div class="bg-${color}-50 border border-${color}-200 p-3 rounded-xl text-xs space-y-0.5">
+                    <div class="font-bold text-${color}-700 text-sm">${hit.day} · ${hit.item.slot}</div>
+                    <div class="font-bold text-slate-900">${hit.entry.subject || getSubjectDisplay(hit.item)}</div>
+                    <div class="text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> Room: ${room || '—'}</div>
+                    ${facultyDisplay && facultyDisplay !== '—' ? `<p class="text-xs text-slate-400 font-medium mt-0.5 flex items-center gap-1"><i data-lucide="user" class="w-3 h-3 shrink-0"></i>${facultyDisplay}</p>` : ''}
+                </div>`;
+        }
+
+        function buildFacultyHitList(hits, color = 'emerald') {
+            let html = `<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-y-auto pr-1">`;
+            hits.forEach(hit => { html += buildFacultyHitCard(hit, color); });
+            html += `</div>`;
+            return html;
+        }
+
+        function facultyDisplayNameFromMatches(facultyMatches, fallback = 'the selected faculty') {
+            if (!facultyMatches.length) return fallback;
+            return facultyMatches.map(match => match.name || match.code).join(' / ');
+        }
+
         function processAIQueryEngine(rawInputText) {
             const rawLowerInput = String(rawInputText || '').toLowerCase();
             const q = rawLowerInput
@@ -1765,9 +2041,39 @@
             explicitDayKeywords.forEach(day => {
                 if (q.includes(day)) targetedDayKeyword = day.charAt(0).toUpperCase() + day.slice(1);
             });
-            // also handle "today" / "tomorrow"
+            // also handle relative day words and common speech-recognition spellings
             if (q.match(/\btoday\b/) && !targetedDayKeyword) targetedDayKeyword = todayName;
-            if (q.match(/\btomorrow\b/) && !targetedDayKeyword) targetedDayKeyword = tomorrowName;
+            if (q.match(/\b(tomorrow|tommorrow|tomorow|tmrw)\b/) && !targetedDayKeyword) targetedDayKeyword = tomorrowName;
+
+            // ── "Do I have classes today/tomorrow/Monday?" ─────────────────────
+            if (targetedDayKeyword && q.match(/\b(do i have|have class|have classes|any class|any classes|are there|is there|classes today|today classes|classes tomorrow|tomorrow classes|classes on|class on)\b/)) {
+                if (targetedDayKeyword === 'Sunday') {
+                    appendMessageBubble('No. Sunday is a holiday — no classes scheduled.', 'ai');
+                    return;
+                }
+                const dayClasses = getSectionScheduleForDay(targetedDayKeyword, localSelectedSection);
+                if (!dayClasses.length) {
+                    appendMessageBubble(`No classes found on <b>${targetedDayKeyword}</b> for <b>${localSelectedSection}</b>.`, 'ai');
+                    return;
+                }
+                appendMessageBubble(`Yes. You have <b>${dayClasses.length}</b> class${dayClasses.length !== 1 ? 'es' : ''} on <b>${targetedDayKeyword}</b> for <b>${localSelectedSection}</b>.`, 'ai', buildCardList(dayClasses, 'blue'));
+                return;
+            }
+
+            // ── Faculty name queries, e.g. "When is Rajamoorthy class today?" ──
+            const facultyMatches = findFacultyMatchesFromQuery(rawInputText);
+            if (facultyMatches.length && q.match(/\b(when|class|classes|period|lecture|schedule|timetable|today|tomorrow|tommorrow|tomorow|tmrw|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/)) {
+                const facultyDay = targetedDayKeyword || '';
+                const facultyHits = findFacultyClassHits(facultyMatches, facultyDay);
+                const facultyName = facultyDisplayNameFromMatches(facultyMatches);
+                const scope = facultyDay ? ` on <b>${facultyDay}</b>` : ' this week';
+                if (!facultyHits.length) {
+                    appendMessageBubble(`No class found for <b>${facultyName}</b>${scope} in <b>${localSelectedSection}</b>.`, 'ai');
+                    return;
+                }
+                appendMessageBubble(`<b>${facultyName}</b> has ${facultyHits.length} class${facultyHits.length !== 1 ? 'es' : ''}${scope} for <b>${localSelectedSection}</b>:`, 'ai', buildFacultyHitList(facultyHits, 'emerald'));
+                return;
+            }
 
             // ── Count of classes on a day ────────────────────────────────────────
             if (targetedDayKeyword && q.match(/how many|count|number of|total class/)) {
