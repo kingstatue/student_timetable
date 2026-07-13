@@ -75,6 +75,38 @@
         }
         /* Smooth scroll for iOS */
         .smooth-scroll { -webkit-overflow-scrolling: touch; }
+
+        /* ── Fuzzy-match disambiguation UI (voice-input tolerance) ─────────── */
+        .fuzzy-suggest-wrap {
+            display: flex; flex-wrap: wrap; gap: 0.375rem;
+            padding: 0.5rem; margin-top: 0.5rem;
+            background: #fff7ed; border: 1px dashed #fdba74; border-radius: 0.75rem;
+        }
+        .fuzzy-suggest-label {
+            width: 100%; font-size: 11px; font-weight: 600; color: #9a3412;
+            margin-bottom: 0.125rem;
+        }
+        .fuzzy-suggest-chip {
+            display: inline-flex; align-items: center; gap: 0.25rem;
+            padding: 0.375rem 0.625rem; font-size: 12px; font-weight: 600;
+            background: #fff; color: #1e293b;
+            border: 1px solid #fdba74; border-radius: 999px;
+            cursor: pointer; transition: transform .1s ease, background .15s ease;
+        }
+        .fuzzy-suggest-chip:active { transform: scale(.97); background: #fff7ed; }
+        .fuzzy-suggest-chip .score {
+            font-size: 10px; color: #64748b; font-weight: 500;
+        }
+        /* Amber ring around the input when the assistant is asking for confirmation */
+        .fuzzy-highlight {
+            animation: fuzzyPulse 1.6s ease-in-out 2;
+            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.45) !important;
+            border-color: #f59e0b !important;
+        }
+        @keyframes fuzzyPulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.45); }
+            50%      { box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.15); }
+        }
     </style>
 </head>
 <body class="text-slate-800 antialiased" style="padding-bottom: max(3rem, env(safe-area-inset-bottom))">
@@ -1062,7 +1094,7 @@
         let speechKeepAliveTimer = null;
         const INDIAN_SPEECH_LOCALE = 'en_IN';
         const FALLBACK_SPEECH_LOCALE = 'en_US';
-        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en_IN', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
+        const INDIAN_VOICE_KEYWORDS = ['india', 'indian', 'en_in', 'veena', 'rishi', 'aditi', 'heera', 'ravi'];
         let preferredIndianVoice = null;
 
         function loadPreferredIndianVoice() {
@@ -1726,6 +1758,130 @@
             return simplifySubjectSearchText(value).replace(/[\s._+]/g, '');
         }
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // LOCAL PHONETIC & FUZZY MATCHING ENGINE (zero external API calls)
+        // Salvages messy voice / STT input like "Rajamoorthi" -> "Rajamoorthy",
+        // "dee bee em ess" -> "DBMS", "programing in see" -> "PROG in C".
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Confidence thresholds (percent). Tune here — used across faculty + subject.
+        const FUZZY_CONF_AUTO      = 85; // >= this: silently auto-resolve to canonical
+        const FUZZY_CONF_ASK_LOW   = 60; // between ASK_LOW and AUTO: surface suggestions
+
+        // Classic Levenshtein edit distance (iterative, O(n*m) time, O(min(n,m)) space).
+        function levenshteinDistance(a, b) {
+            a = String(a || ''); b = String(b || '');
+            if (a === b) return 0;
+            if (!a.length) return b.length;
+            if (!b.length) return a.length;
+            if (a.length < b.length) { const t = a; a = b; b = t; }
+            const prev = new Array(b.length + 1);
+            for (let j = 0; j <= b.length; j++) prev[j] = j;
+            for (let i = 1; i <= a.length; i++) {
+                let curr = i;
+                let prevDiag = i - 1;
+                for (let j = 1; j <= b.length; j++) {
+                    const above = prev[j];
+                    const cost  = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+                    const next  = Math.min(curr + 1, above + 1, prevDiag + cost);
+                    prev[j - 1] = curr;
+                    curr = next;
+                    prevDiag = above;
+                }
+                prev[b.length] = curr;
+            }
+            return prev[b.length];
+        }
+
+        // Levenshtein similarity as a 0–100 percentage.
+        function levenshteinSimilarityPct(a, b) {
+            const s1 = String(a || ''); const s2 = String(b || '');
+            if (!s1 && !s2) return 100;
+            const maxLen = Math.max(s1.length, s2.length);
+            if (!maxLen) return 0;
+            const d = levenshteinDistance(s1, s2);
+            return Math.max(0, Math.round((1 - d / maxLen) * 100));
+        }
+
+        // Sørensen–Dice coefficient over character bigrams (0–100).
+        // Robust against transpositions / mis-tokenised speech.
+        function diceCoefficientPct(a, b) {
+            const s1 = String(a || '').toLowerCase().replace(/\s+/g, '');
+            const s2 = String(b || '').toLowerCase().replace(/\s+/g, '');
+            if (s1 === s2) return 100;
+            if (s1.length < 2 || s2.length < 2) return 0;
+            const bigrams = new Map();
+            for (let i = 0; i < s1.length - 1; i++) {
+                const g = s1.slice(i, i + 2);
+                bigrams.set(g, (bigrams.get(g) || 0) + 1);
+            }
+            let intersect = 0;
+            for (let i = 0; i < s2.length - 1; i++) {
+                const g = s2.slice(i, i + 2);
+                const c = bigrams.get(g) || 0;
+                if (c > 0) { intersect++; bigrams.set(g, c - 1); }
+            }
+            return Math.round((2 * intersect / (s1.length + s2.length - 2)) * 100);
+        }
+
+        // Lightweight phonetic normaliser tuned for Indian faculty/subject speech.
+        // Handles: Rajamoorthy/Rajamoorthi, Sri/Shri/Shree, ph<->f, v<->w,
+        // trailing y/i, doubled consonants, "ee"->"i" etc.
+        function phoneticFold(value) {
+            let s = String(value || '').toLowerCase().trim();
+            if (!s) return '';
+            s = s.replace(/[^a-z0-9]+/g, '');
+            if (!s) return '';
+            s = s
+                .replace(/ph/g, 'f')
+                .replace(/ck/g, 'k')
+                .replace(/qu/g, 'kw')
+                .replace(/sch/g, 'sh')
+                .replace(/tch/g, 'ch')
+                .replace(/wh/g, 'w')
+                .replace(/kh/g, 'k')
+                .replace(/gh/g, 'g')
+                .replace(/th/g, 't')
+                .replace(/dh/g, 'd')
+                .replace(/bh/g, 'b')
+                .replace(/jh/g, 'j')
+                .replace(/sh/g, 's')
+                .replace(/ch/g, 's')
+                .replace(/x/g, 'ks')
+                .replace(/z/g, 's')
+                .replace(/v/g, 'w')      // v<->w collapse
+                .replace(/y/g, 'i')      // murthy/murthi
+                .replace(/ee/g, 'i')
+                .replace(/oo/g, 'u')
+                .replace(/ai/g, 'a')
+                .replace(/ou/g, 'u');
+            s = s.replace(/(.)\1+/g, '$1');           // collapse doubles
+            s = s.replace(/^h(?=[aeiou])/, '');       // drop soft leading H
+            const head = s[0];
+            const tail = s.slice(1).replace(/[aeiou]/g, ''); // Soundex-like skeleton
+            return head + tail;
+        }
+
+        // Blended similarity — best of Levenshtein, Dice, phonetic-folded Lev.
+        // Returns 0–100. A small substring bonus catches "cn" inside "dbms cn lab".
+        function hybridSimilarityPct(a, b) {
+            const s1 = String(a || '').toLowerCase().replace(/\s+/g, '');
+            const s2 = String(b || '').toLowerCase().replace(/\s+/g, '');
+            if (!s1 || !s2) return 0;
+            const lev  = levenshteinSimilarityPct(s1, s2);
+            const dice = diceCoefficientPct(s1, s2);
+            const phon = levenshteinSimilarityPct(phoneticFold(s1), phoneticFold(s2));
+            let contain = 0;
+            if (s1.length >= 3 && s2.length >= 3) {
+                if (s2.includes(s1)) contain = Math.min(96, 60 + s1.length * 4);
+                else if (s1.includes(s2)) contain = Math.min(92, 55 + s2.length * 4);
+            }
+            return Math.max(lev, dice, phon, contain);
+        }
+        // ═══════════════════════════════════════════════════════════════════════
+        // END fuzzy matching engine
+        // ═══════════════════════════════════════════════════════════════════════
+
         function getSubjectAliasesForEntry(entry) {
             const aliases = new Set();
             const subject = entry && entry.subject ? entry.subject : '';
@@ -1744,6 +1900,8 @@
             return [...aliases].filter(Boolean);
         }
 
+        // Upgraded: after all rule-based signals, layer in the local hybrid
+        // fuzzy engine so "dee bee em ess" or "programing in see" still resolves.
         function scoreSubjectMatch(queryText, entry) {
             const qNorm = simplifySubjectSearchText(queryText);
             const qCompact = compactSubjectSearchText(queryText);
@@ -1757,7 +1915,9 @@
 
                 if (qNorm === aliasNorm) bestScore = Math.max(bestScore, 100);
                 if (qCompact === aliasCompact) bestScore = Math.max(bestScore, 98);
-                if (/\blab\b/.test(aliasNorm) && !/\blab\b/.test(qNorm) && aliasNorm !== qNorm) return;
+                // Never let a bare subject query auto-resolve to the "…LAB" variant.
+                const isLabAlias = /\blab\b/.test(aliasNorm);
+                if (isLabAlias && !/\blab\b/.test(qNorm) && aliasNorm !== qNorm) return;
                 if (qNorm.includes(aliasNorm) && aliasCompact.length >= 2) bestScore = Math.max(bestScore, 85);
                 if (aliasNorm.startsWith(qNorm + ' ') && qNorm.length >= 3) bestScore = Math.max(bestScore, 70);
                 if (aliasNorm.includes(qNorm) && qNorm.length >= 3) bestScore = Math.max(bestScore, 65);
@@ -1767,9 +1927,17 @@
                 if (qWords.length && qWords.every(word => aliasWords.includes(word))) {
                     bestScore = Math.max(bestScore, qWords.length === aliasWords.length ? 92 : 62);
                 }
+
+                // ── NEW: hybrid phonetic + Levenshtein + Dice fallback ─────────
+                if (aliasCompact.length >= 2 && qCompact.length >= 2) {
+                    const sim = hybridSimilarityPct(qCompact, aliasCompact);
+                    // Cap boosts for LAB aliases to avoid drifting a plain "DBMS"
+                    // query into "DBMS LAB" via string similarity alone.
+                    bestScore = Math.max(bestScore, isLabAlias ? Math.min(sim, 75) : sim);
+                }
             });
 
-            return bestScore;
+            return Math.min(100, bestScore);
         }
 
         function extractSubjectQueryFromInput(rawInputText) {
@@ -1906,32 +2074,65 @@
             });
         }
 
+        // Upgraded: blends legacy exact/substring rules with the local phonetic + fuzzy
+        // engine so that mishears like "Rajamoorthi" match "Rajamoorthy" (~90%+).
         function scoreFacultyCandidate(rawInputText, candidate) {
             const cleanedQuery = normalizeFacultySearchText(rawInputText);
             const compactQuery = compactFacultySearchText(cleanedQuery);
-            const compactRaw = compactFacultySearchText(rawInputText);
+            const compactRaw   = compactFacultySearchText(rawInputText);
             if (!compactQuery && !compactRaw) return 0;
             let score = 0;
             candidate.aliases.forEach(alias => {
                 const aliasCompact = compactFacultySearchText(alias);
                 if (!aliasCompact || aliasCompact.length < 2) return;
+
+                // ── Legacy exact / substring signals ────────────────────────────
                 if (compactQuery === aliasCompact) score = Math.max(score, 100);
                 if (aliasCompact.length >= 4 && compactRaw.includes(aliasCompact)) score = Math.max(score, 90);
                 if (compactQuery.length >= 3 && aliasCompact.includes(compactQuery)) score = Math.max(score, 84);
                 if (compactQuery.length >= 4 && compactQuery.includes(aliasCompact)) score = Math.max(score, 78);
                 if (/^[a-z]{2,8}$/i.test(candidate.code) && compactRaw.includes(compactFacultySearchText(candidate.code))) score = Math.max(score, 88);
+
+                // ── NEW: hybrid fuzzy + phonetic similarity on the alias ───────
+                // Compare the alias against both the noise-stripped query and the
+                // full raw query, and against every word-token of the query so a
+                // single misheard first name inside a sentence still matches.
+                if (aliasCompact.length >= 3) {
+                    const simAgainstClean = hybridSimilarityPct(compactQuery, aliasCompact);
+                    const simAgainstRaw   = hybridSimilarityPct(compactRaw,   aliasCompact);
+                    score = Math.max(score, simAgainstClean, simAgainstRaw);
+
+                    // Token-level: catches "when is rajamoorthi class" (raw query
+                    // contains stop words that dilute whole-string similarity).
+                    const tokens = String(cleanedQuery || '').split(/\s+/).filter(t => t.length >= 3);
+                    tokens.forEach(tok => {
+                        const tokCompact = compactFacultySearchText(tok);
+                        if (tokCompact.length < 3) return;
+                        const tokSim = hybridSimilarityPct(tokCompact, aliasCompact);
+                        // Slight de-emphasis of single-token matches so a full-name
+                        // exact hit still beats a partial one.
+                        if (tokSim > score - 4) score = Math.max(score, Math.round(tokSim * 0.98));
+                    });
+                }
             });
-            return score;
+            return Math.min(100, score);
         }
 
+        // Returns a ranked list of faculty candidates with score attached.
+        // Callers can inspect the top score to decide auto-resolve vs. ask.
         function findFacultyMatchesFromQuery(rawInputText) {
             const candidates = getFacultyCandidates()
                 .map(candidate => ({ ...candidate, score: scoreFacultyCandidate(rawInputText, candidate) }))
-                .filter(candidate => candidate.score >= 72)
+                .filter(candidate => candidate.score >= FUZZY_CONF_ASK_LOW)
                 .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
             if (!candidates.length) return [];
             const best = candidates[0].score;
-            return candidates.filter(candidate => candidate.score >= Math.max(72, best - 8)).slice(0, 3);
+            // Auto-resolve branch: only keep tight cluster around the winner
+            if (best >= FUZZY_CONF_AUTO) {
+                return candidates.filter(c => c.score >= Math.max(FUZZY_CONF_AUTO - 5, best - 8)).slice(0, 3);
+            }
+            // Ambiguous branch: return top 3 for the disambiguation UI.
+            return candidates.slice(0, 3);
         }
 
         function splitFacultyCodeList(facultyCodes) {
@@ -2014,6 +2215,79 @@
             return facultyMatches.map(match => match.name || match.code).join(' / ');
         }
 
+        // Enumerate every distinct canonical subject present in the current
+        // section timetable, each paired with its best fuzzy score vs. the query.
+        // Used by the disambiguation UI when the subject match is uncertain.
+        function scoreAllSubjectCandidates(rawInputText) {
+            const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+            const bestByKey = new Map();
+            days.forEach(day => {
+                getSectionScheduleForDay(day, localSelectedSection).forEach(item => {
+                    getSubjectEntriesForDisplay(item).forEach(entry => {
+                        if (!entry || !entry.subject) return;
+                        const score = scoreSubjectMatch(rawInputText, entry);
+                        if (score <= 0) return;
+                        const key = entry.subjectKey || entry.subject;
+                        const existing = bestByKey.get(key);
+                        if (!existing || score > existing.score) {
+                            bestByKey.set(key, { label: entry.subject, score });
+                        }
+                    });
+                });
+            });
+            return [...bestByKey.values()].sort((a, b) => b.score - a.score);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // Disambiguation UI — used when fuzzy confidence falls in the "ask" band
+        // (FUZZY_CONF_ASK_LOW … FUZZY_CONF_AUTO). Emits chip buttons the user can
+        // tap to re-run the query against the exact canonical name/subject.
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Called from a chip click. Rewrites the assistant input and re-submits.
+        function applyFuzzyPick(canonicalText) {
+            const fieldElement = document.getElementById('ai-user-input-field');
+            if (fieldElement) {
+                fieldElement.value = canonicalText;
+                fieldElement.classList.remove('fuzzy-highlight');
+            }
+            handleAIQueryFormSubmit(null);
+        }
+        window.applyFuzzyPick = applyFuzzyPick; // expose for inline onclick
+
+        // Briefly highlight the assistant input field so the user notices we
+        // need confirmation. Auto-clears after ~4s.
+        function pulseAssistantInputForConfirmation() {
+            const fieldElement = document.getElementById('ai-user-input-field');
+            if (!fieldElement) return;
+            fieldElement.classList.add('fuzzy-highlight');
+            setTimeout(() => fieldElement.classList.remove('fuzzy-highlight'), 4200);
+        }
+
+        // Build the chip cluster HTML from a list of {label, score} objects.
+        function buildFuzzySuggestionChipsHTML(kindLabel, options) {
+            if (!options || !options.length) return '';
+            const chips = options.slice(0, 3).map(opt => {
+                const safeLabel = String(opt.label || '').replace(/"/g, '&quot;');
+                const score = Math.round(opt.score || 0);
+                return `<button type="button" class="fuzzy-suggest-chip" onclick="applyFuzzyPick('${safeLabel}')">
+                    <i data-lucide="wand-sparkles" class="w-3 h-3"></i>
+                    <span>${safeLabel}</span><span class="score">${score}%</span>
+                </button>`;
+            }).join('');
+            return `<div class="fuzzy-suggest-wrap">
+                <div class="fuzzy-suggest-label">Did you mean this ${kindLabel}? Tap to confirm:</div>
+                ${chips}
+            </div>`;
+        }
+
+        // Convenience: post an ambiguity bubble + pulse the input field.
+        function surfaceFuzzyAmbiguity(kindLabel, options, leadText) {
+            const chipsHTML = buildFuzzySuggestionChipsHTML(kindLabel, options);
+            appendMessageBubble(leadText || `I heard something close to a ${kindLabel} but I'm not sure which one.`, 'ai', chipsHTML);
+            pulseAssistantInputForConfirmation();
+        }
+
         function processAIQueryEngine(rawInputText) {
             const rawLowerInput = String(rawInputText || '').toLowerCase();
             const q = rawLowerInput
@@ -2062,11 +2336,30 @@
             }
 
             // ── Faculty name queries, e.g. "When is Rajamoorthy class today?" ──
+            // NOTE: findFacultyMatchesFromQuery now uses the local phonetic +
+            // Levenshtein/Dice engine. When the top score is in the "ask" band
+            // (60–84%) we surface tap-to-confirm chips instead of guessing.
             const facultyMatches = findFacultyMatchesFromQuery(rawInputText);
-            if (facultyMatches.length && q.match(/\b(when|class|classes|period|lecture|schedule|timetable|today|tomorrow|tommorrow|tomorow|tmrw|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/)) {
-                const facultyDay = targetedDayKeyword || '';
-                const facultyHits = findFacultyClassHits(facultyMatches, facultyDay);
-                const facultyName = facultyDisplayNameFromMatches(facultyMatches);
+            const facultyIntent = q.match(/\b(when|class|classes|period|lecture|schedule|timetable|today|tomorrow|tommorrow|tomorow|tmrw|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+            if (facultyMatches.length && facultyIntent) {
+                const topFacScore = facultyMatches[0].score;
+
+                // Ambiguous cluster – ask before answering.
+                if (topFacScore < FUZZY_CONF_AUTO && topFacScore >= FUZZY_CONF_ASK_LOW) {
+                    surfaceFuzzyAmbiguity(
+                        'faculty',
+                        facultyMatches.map(m => ({ label: (m.name || m.code), score: m.score })),
+                        `I couldn't pin down the faculty name from your voice input. Did you mean one of these?`
+                    );
+                    return;
+                }
+
+                // High-confidence path – auto-resolve.
+                const confidentMatches = facultyMatches.filter(m => m.score >= FUZZY_CONF_AUTO);
+                const resolvedMatches  = confidentMatches.length ? confidentMatches : facultyMatches;
+                const facultyDay  = targetedDayKeyword || '';
+                const facultyHits = findFacultyClassHits(resolvedMatches, facultyDay);
+                const facultyName = facultyDisplayNameFromMatches(resolvedMatches);
                 const scope = facultyDay ? ` on <b>${facultyDay}</b>` : ' this week';
                 if (!facultyHits.length) {
                     appendMessageBubble(`No class found for <b>${facultyName}</b>${scope} in <b>${localSelectedSection}</b>.`, 'ai');
@@ -2176,6 +2469,22 @@
                 buildSubjectHits(subjectQuery, '').length
             );
             if (subjectIntent) {
+                // ── NEW: fuzzy disambiguation for ambiguous subject voice input ──
+                // If the strongest subject match sits in the "ask" band, present
+                // clickable canonical suggestions instead of guessing.
+                const subjectCandidates = scoreAllSubjectCandidates(subjectQuery);
+                if (subjectCandidates.length) {
+                    const topSubjScore = subjectCandidates[0].score;
+                    if (topSubjScore < FUZZY_CONF_AUTO && topSubjScore >= FUZZY_CONF_ASK_LOW) {
+                        surfaceFuzzyAmbiguity(
+                            'subject',
+                            subjectCandidates.slice(0, 3),
+                            `I heard something close to a subject name but I'm not certain. Did you mean one of these?`
+                        );
+                        return;
+                    }
+                }
+
                 const subjectDay = targetedDayKeyword || (q.match(/\btoday\b/) ? todayName : '');
                 const subjectHits = buildSubjectHits(subjectQuery, subjectDay);
                 const allWeekHits = subjectHits.length ? subjectHits : buildSubjectHits(subjectQuery, '');
@@ -2244,6 +2553,7 @@
         }
     
     </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
