@@ -158,16 +158,23 @@
             </div>
         </div>
 
-        <!-- ── PIN-First Login Screen ─────────────────────────────────────── -->
+        <!-- ── Student Login Screen ──────────────────────────────────────── -->
         <div id="pin-login-modal" class="fixed inset-0 bg-gradient-to-br from-slate-900 to-indigo-950 z-50 flex items-center justify-center p-4">
             <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
-                <div class="text-center mb-5">
-                    <div class="mx-auto w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-3">
+                <div class="text-center mb-4">
+                    <div class="mx-auto w-14 h-14 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-2 mt-1">
                         <i data-lucide="graduation-cap" class="w-7 h-7"></i>
                     </div>
                     <h2 class="text-xl font-bold text-slate-900">MGM Student Portal</h2>
-                    <p class="text-sm text-slate-500 mt-1">Enter your class PIN to continue</p>
+                    <p class="text-sm text-slate-500 mt-0.5">Select section and enter PIN to login</p>
                 </div>
+                
+                <div class="mb-4 text-left">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Select Section</label>
+                    <select id="login-section-dropdown" onchange="loginPadClear()" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 font-semibold" style="font-size: 15px">
+                    </select>
+                </div>
+
                 <div class="flex justify-center gap-4 mb-2">
                     <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-0"></div>
                     <div class="w-5 h-5 rounded-full border-2 border-slate-300 transition-all" id="login-dot-1"></div>
@@ -176,39 +183,57 @@
                 </div>
                 <p id="login-pin-error" class="text-center text-xs text-red-500 font-medium mb-3 h-4"></p>
                 <div class="grid grid-cols-3 gap-2 mb-2">
-                    <button onclick="loginPadPress('1')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">1</button>
-                    <button onclick="loginPadPress('2')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">2</button>
-                    <button onclick="loginPadPress('3')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">3</button>
-                    <button onclick="loginPadPress('4')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">4</button>
-                    <button onclick="loginPadPress('5')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">5</button>
-                    <button onclick="loginPadPress('6')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">6</button>
-                    <button onclick="loginPadPress('7')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">7</button>
-                    <button onclick="loginPadPress('8')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">8</button>
-                    <button onclick="loginPadPress('9')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">9</button>
-                    <button onclick="loginPadClear()" class="py-3.5 text-sm font-semibold text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">CLR</button>
-                    <button onclick="loginPadPress('0')" class="py-3.5 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">0</button>
-                    <button onclick="loginPadBackspace()" class="py-3.5 text-lg text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">⌫</button>
+                    <button onclick="loginPadPress('1')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">1</button>
+                    <button onclick="loginPadPress('2')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">2</button>
+                    <button onclick="loginPadPress('3')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">3</button>
+                    <button onclick="loginPadPress('4')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">4</button>
+                    <button onclick="loginPadPress('5')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">5</button>
+                    <button onclick="loginPadPress('6')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">6</button>
+                    <button onclick="loginPadPress('7')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">7</button>
+                    <button onclick="loginPadPress('8')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">8</button>
+                    <button onclick="loginPadPress('9')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">9</button>
+                    <button onclick="loginPadClear()" class="py-3 text-sm font-semibold text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">CLR</button>
+                    <button onclick="loginPadPress('0')" class="py-3 text-xl font-bold text-slate-800 bg-slate-50 active:bg-indigo-50 active:text-indigo-700 rounded-xl border border-slate-200">0</button>
+                    <button onclick="loginPadBackspace()" class="py-3 text-lg text-slate-400 bg-slate-50 active:bg-slate-100 rounded-xl border border-slate-200">⌫</button>
+                </div>
+                
+                <div class="mt-4 text-center">
+                    <button type="button" onclick="showSectionPinsModal()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline bg-transparent shadow-none border-none p-0 min-h-0 flex items-center justify-center mx-auto gap-1">
+                        <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                        <span>View Section PINs</span>
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- ── Section Confirmation Modal ────────────────────────────────── -->
-        <div id="pin-confirm-modal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center space-y-4">
-                <div class="mx-auto w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
-                    <i data-lucide="check-circle" class="w-8 h-8"></i>
-                </div>
-                <div>
-                    <p class="text-sm text-slate-500 mb-1">PIN matched! You are</p>
-                    <p id="confirm-section-name" class="text-xl font-bold text-indigo-700"></p>
-                </div>
-                <p class="text-sm text-slate-400">Is this your section?</p>
-                <div class="grid grid-cols-2 gap-3 pt-1">
-                    <button onclick="confirmSectionYes()" class="py-3 bg-emerald-600 active:bg-emerald-700 text-white font-semibold rounded-xl shadow-md shadow-emerald-100">
-                        ✓ Yes, that's me
+        <!-- ── Section PINs List Modal ────────────────────────────────────── -->
+        <div id="section-pins-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl flex flex-col max-h-[80vh]">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                    <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="key-round" class="w-5 h-5 text-indigo-600"></i>
+                        <span>Section PINs List</span>
+                    </h3>
+                    <button onclick="hideSectionPinsModal()" class="text-slate-400 active:text-slate-600 p-1.5 rounded-lg active:bg-slate-50 transition shrink-0 bg-transparent border-none shadow-none min-h-0 flex items-center justify-center">
+                        <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
-                    <button onclick="confirmSectionNo()" class="py-3 bg-slate-100 active:bg-slate-200 text-slate-700 font-semibold rounded-xl">
-                        ✗ No, try again
+                </div>
+                <div class="flex-1 overflow-y-auto border border-slate-200 rounded-xl smooth-scroll">
+                    <table class="w-full border-collapse text-left text-xs text-slate-700">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200">
+                                <th class="p-3 font-semibold text-slate-600 text-left bg-slate-50 sticky top-0">Section</th>
+                                <th class="p-3 font-semibold text-slate-600 text-left bg-slate-50 sticky top-0">PIN</th>
+                            </tr>
+                        </thead>
+                        <tbody id="section-pins-table-body" class="divide-y divide-slate-100">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pt-4 mt-3 border-t border-slate-100">
+                    <button onclick="window.print()" class="w-full bg-slate-800 active:bg-slate-900 text-white font-medium py-3 rounded-xl transition flex items-center justify-center space-x-2 text-sm shadow-md">
+                        <i data-lucide="printer" class="w-4 h-4"></i>
+                        <span>Print PINs</span>
                     </button>
                 </div>
             </div>
@@ -324,7 +349,7 @@
             "DBMS LAB": "dbms lab",
             "DEVOPS": "devops",
             "OST": "O.S.T",
-            "wcms": "W.C.M.S",
+            "WCMS": "web content management system",
             "CLOUD": "cloud",
             "CRYPT": "cryptography",
             "DAA": "D.A.A",
@@ -332,8 +357,8 @@
             "R LAB": "R lab",
             "R PROG": "R programming",
             "SE": "S.E.",
-            "WEB": "web",
-            "WEB LAB": "web lab",
+            "WEB": "dynamic web programming",
+            "WEB LAB": "dynamic web programming lab",
             "F_C": "fOC and C",
             "F_C LAB": "C programming lab",
             "COA_EL": "C.O.A",
@@ -341,53 +366,55 @@
             "JAVA LAB": "java lab",
             "OS": "oO.S.",
             "PY_OS LAB": "python and Linux lab",
-            "PYTHON": "python"
+            "PYTHON": "python",
+            "MSCLAB": "MSc lab",
+            "SLAB": "skill lab",
+            "SKLR1": "skil room 1"
         };
         let subjectSpeechMap = normalizeSubjectSpeechMap(DEFAULT_SUBJECT_SPEECH_MAP);
         let registeredSections = [];
         let localSelectedSection = '';
 
         // ════════════════════════════════════════════════════════════════════
-        // SECTION PIN MAP  —  Edit PINs here before deploying
-        // Format: 'Exact Section Name' : 'PIN'
+        // DYNAMIC SECTION PIN GENERATOR (Automatic PIN for each section)
         // ════════════════════════════════════════════════════════════════════
-        const SECTION_PINS = {
-            '1st BCA A'         : '1001',
-            '1st BCA B'         : '1002',
-            '1st BCA C(AIML)'   : '1003',
-            '1st BSc'           : '1004',
-            '1st BCA A (Eve)'   : '1005',
-            '1st BCA B (Eve)'   : '1006',
-            '2nd BCA A'         : '2001',
-            '2nd BCA B'         : '2002',
-            '2nd BCA C'         : '2003',
-            '2nd BSc'           : '2004',
-            '2nd BCA A (Eve)'   : '2005',
-            '2nd BCA B (Eve)'   : '2006',
-            '3rd BCA A'         : '3001',
-            '3rd BCA B'         : '3002',
-            '3rd BCA C'         : '3003',
-            '3rd BSc'           : '3004',
-            '3rd BCA A (Eve)'   : '3005',
-            '3rd BCA B (Eve)'   : '3006',
-        };
+        function generateSectionPin(sectionName) {
+            const input = ((sectionName || '') + 'MGMCollege').toUpperCase();
+            let hash = 0;
+            for (let i = 0; i < input.length; i++) {
+                const char = input.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash |= 0; // Convert to 32bit integer
+            }
+            let pin = Math.abs(hash) % 9000 + 1000;
+            return String(pin);
+        }
         // Max wrong attempts before session lock
         const PIN_MAX_ATTEMPTS = 3;
 
-        // Login-screen state (PIN-first flow)
+        // Login-screen state (Section-first flow)
         let loginPinInput    = '';
         let loginAttempts    = 0;
-        let loginPendingSection = ''; // section found by PIN, waiting for confirmation
 
-        // ── PIN-First Login Screen functions ────────────────────────────────
         function showLoginScreen() {
             stopAssistantSpeech();
             loginPinInput = '';
             loginAttempts = 0;
-            loginPendingSection = '';
             updateLoginDots();
             const err = document.getElementById('login-pin-error');
             if (err) err.innerText = '';
+            
+            // Populate login section dropdown initial value if available
+            const loginDrop = document.getElementById('login-section-dropdown');
+            if (loginDrop) {
+                const preservedSection = localStorage.getItem('student_selected_section') || localSelectedSection;
+                if (preservedSection && registeredSections.includes(preservedSection)) {
+                    loginDrop.value = preservedSection;
+                } else if (registeredSections.length > 0) {
+                    loginDrop.value = registeredSections[0];
+                }
+            }
+
             // Re-enable all numpad buttons in case they were locked
             document.querySelectorAll('#pin-login-modal button').forEach(b => {
                 b.disabled = false;
@@ -432,20 +459,19 @@
         }
 
         function verifyLoginPIN() {
-            // Search all sections for a matching PIN
-            const matched = Object.entries(SECTION_PINS).find(([, pin]) => pin === loginPinInput);
+            const dropdown = document.getElementById('login-section-dropdown');
+            if (!dropdown) return;
+            const section = dropdown.value;
+            if (!section) return;
 
-            if (matched) {
-                const section = matched[0];
-                loginPendingSection = section;
+            // Generate correct PIN dynamically for selected section
+            const correctPin = generateSectionPin(section);
+
+            if (loginPinInput === correctPin) {
                 loginPinInput = '';
                 updateLoginDots();
-                // Show confirmation modal
                 hideLoginScreen();
-                const nameEl = document.getElementById('confirm-section-name');
-                if (nameEl) nameEl.innerText = section;
-                document.getElementById('pin-confirm-modal').classList.remove('hidden');
-                lucide.createIcons();
+                unlockSection(section);
             } else {
                 loginAttempts++;
                 loginPinInput = '';
@@ -466,18 +492,32 @@
             }
         }
 
-        function confirmSectionYes() {
-            primeSpeechOutputOnUserGesture();
-            document.getElementById('pin-confirm-modal').classList.add('hidden');
-            unlockSection(loginPendingSection);
-            loginPendingSection = '';
+        function showSectionPinsModal() {
+            const password = prompt("Enter Master Password to view PINs:");
+            if (password !== "mgmadmin") {
+                alert("Incorrect password!");
+                return;
+            }
+            const tbody = document.getElementById('section-pins-table-body');
+            if (tbody) {
+                tbody.innerHTML = '';
+                registeredSections.forEach(section => {
+                    const pin = generateSectionPin(section);
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 border-b border-slate-100';
+                    tr.innerHTML = `
+                        <td class="p-3 font-semibold text-slate-900">${section}</td>
+                        <td class="p-3 font-bold text-indigo-600 font-mono text-sm">${pin}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            document.getElementById('section-pins-modal').classList.remove('hidden');
+            lucide.createIcons();
         }
 
-        function confirmSectionNo() {
-            document.getElementById('pin-confirm-modal').classList.add('hidden');
-            loginPendingSection = '';
-            // Go back to login screen with cleared state
-            showLoginScreen();
+        function hideSectionPinsModal() {
+            document.getElementById('section-pins-modal').classList.add('hidden');
         }
 
         const APP_BUILD_VERSION = '2026-07-13-speech-ai-faculty-v4';
@@ -701,6 +741,17 @@
                     dropContainer.appendChild(option);
                 });
             }
+
+            const loginDropContainer = document.getElementById('login-section-dropdown');
+            if (loginDropContainer) {
+                loginDropContainer.innerHTML = '';
+                registeredSections.forEach(section => {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.innerText = section;
+                    loginDropContainer.appendChild(option);
+                });
+            }
         }
 
         function checkStoredSectionState() {
@@ -718,6 +769,7 @@
                         localSelectedSection = resolvedSection;
                         localStorage.setItem('student_selected_section', resolvedSection);
                         updateUIPerferenceBadges();
+                        hideLoginScreen();
                         return;
                     }
                 }
@@ -1332,16 +1384,26 @@
 
         function expandSubjectCodesForSpeech(text) {
             if (!text || !subjectSpeechMap || Object.keys(subjectSpeechMap).length === 0) return text;
-            let expandedText = text;
-            Object.entries(subjectSpeechMap)
-                .sort((a, b) => b[0].length - a[0].length)
-                .forEach(([code, spokenName]) => {
-                    const pattern = subjectCodePattern(code);
-                    expandedText = expandedText.replace(new RegExp(`(^|[^A-Za-z0-9_])(${pattern})(?=$|[^A-Za-z0-9_])`, 'gi'), (match, prefix) => {
-                        return `${prefix}${spokenName}`;
-                    });
-                });
-            return expandedText;
+            
+            // Sort keys by length descending to match longer patterns first (e.g. "wcms-web" before "wcms")
+            const sortedCodes = Object.keys(subjectSpeechMap).sort((a, b) => b.length - a.length);
+            
+            // Create regex patterns for each code, ensuring boundaries
+            const regexEscapedCodes = sortedCodes.map(code => {
+                const escaped = escapeRegExp(code).replace(/\s+/g, '\\s+');
+                const startBoundary = /^[A-Za-z0-9_]/.test(code) ? '\\b' : '';
+                const endBoundary = /[A-Za-z0-9_]$/.test(code) ? '\\b' : '';
+                return `${startBoundary}${escaped}${endBoundary}`;
+            });
+            
+            // Combine all patterns into a single regex with choices
+            const combinedRegex = new RegExp(regexEscapedCodes.join('|'), 'gi');
+            
+            // Replace matched code with corresponding value in a single pass
+            return text.replace(combinedRegex, (match) => {
+                const key = match.toUpperCase().replace(/\s+/g, ' ');
+                return subjectSpeechMap[key] || match;
+            });
         }
 
         function numberToSpeechUnder60(value) {
@@ -1403,17 +1465,207 @@
             return normalizedText.replace(/\(\s*(?:—|-|not assigned|no faculty|undefined|null|n\/?a|tba|nil)?\s*\)/gi, ' ');
         }
 
+        function parseTimeToMinutesForSpeech(timeStr) {
+            try {
+                const clean = timeStr.replace(/[^\d:.]/g, '').replace('.', ':');
+                const parts = clean.split(':');
+                let hours = parseInt(parts[0], 10);
+                let minutes = parts[1] ? parseInt(parts[1], 10) : 0;
+                if (hours >= 1 && hours <= 7) { // afternoon shift
+                    hours += 12;
+                }
+                return hours * 60 + minutes;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        function areTimesConsecutiveForSpeech(time1, time2) {
+            const m1 = parseTimeToMinutesForSpeech(time1);
+            const m2 = parseTimeToMinutesForSpeech(time2);
+            if (m1 === 0 || m2 === 0) return false;
+            const diff = m2 - m1;
+            return diff >= 0 && diff <= 10;
+        }
+
+        function extractCardsFromHTML(doc) {
+            const cards = [];
+            const slotRegex = /\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)\b/;
+            
+            // Format A: Day/Week display cards (flex layout, with slot-badge)
+            const dayCards = doc.querySelectorAll('.slot-badge');
+            if (dayCards.length > 0) {
+                dayCards.forEach(badge => {
+                    const cardContainer = badge.closest('div.bg-gradient-to-r') || badge.parentElement;
+                    if (!cardContainer) return;
+                    const slot = badge.innerText.trim();
+                    const h4 = cardContainer.querySelector('h4');
+                    const subject = h4 ? h4.innerText.trim() : '';
+                    
+                    const pElements = cardContainer.querySelectorAll('p');
+                    let room = '';
+                    let faculty = '';
+                    pElements.forEach(p => {
+                        const txt = p.textContent.replace(/\s+/g, ' ').trim();
+                        if (p.querySelector('[data-lucide="map-pin"]') || p.innerHTML.includes('map-pin')) {
+                            room = txt;
+                        } else if (p.querySelector('[data-lucide="user"]') || p.innerHTML.includes('user')) {
+                            faculty = txt;
+                        } else if (!room) {
+                            room = txt;
+                        } else {
+                            faculty = txt;
+                        }
+                    });
+                    
+                    cards.push({ slot, subject, room, faculty });
+                });
+                return cards;
+            }
+            
+            // Format B: Chatbot cards (grid/flex children inside a wrapper div)
+            const allDivs = doc.querySelectorAll('div');
+            allDivs.forEach(div => {
+                if (div.children.length >= 3 && div.children.length <= 5) {
+                    const firstChildText = div.children[0].innerText.trim();
+                    if (slotRegex.test(firstChildText)) {
+                        const slot = firstChildText;
+                        const subject = div.children[1].innerText.trim();
+                        
+                        let room = '';
+                        let faculty = '';
+                        for (let k = 2; k < div.children.length; k++) {
+                            const childText = div.children[k].innerText.trim();
+                            if (childText.toLowerCase().includes('room') || childText.toLowerCase().includes('lab')) {
+                                room = childText;
+                            } else if (childText.toLowerCase().includes('faculty') || childText.toLowerCase().includes('staff') || childText.toLowerCase().includes('teacher')) {
+                                faculty = childText;
+                            } else if (!room) {
+                                room = childText;
+                            } else {
+                                faculty = childText;
+                            }
+                        }
+                        cards.push({ slot, subject, room, faculty });
+                    }
+                }
+            });
+            
+            return cards;
+        }
+
+        function mergeConsecutiveLabCards(cards) {
+            const merged = [];
+            const slotRegex = /\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)\b/;
+            
+            for (let i = 0; i < cards.length; i++) {
+                const current = cards[i];
+                const isLab = /LAB\b/i.test(current.subject);
+                
+                if (isLab) {
+                    const currentMatch = current.slot.match(slotRegex);
+                    if (currentMatch) {
+                        const currentStart = currentMatch[1];
+                        const currentEnd = currentMatch[2];
+                        
+                        let j = i + 1;
+                        let lastEnd = currentEnd;
+                        let mergedEnd = currentEnd;
+                        let lookaheadMerged = false;
+                        
+                        while (j < cards.length) {
+                            const next = cards[j];
+                            const nextIsLab = /LAB\b/i.test(next.subject);
+                            const nextMatch = next.slot.match(slotRegex);
+                            
+                            if (nextIsLab && nextMatch) {
+                                const nextStart = nextMatch[1];
+                                const nextEnd = nextMatch[2];
+                                
+                                const sameSubject = next.subject.toUpperCase() === current.subject.toUpperCase();
+                                const sameRoom = next.room.toUpperCase() === current.room.toUpperCase();
+                                const sameFaculty = next.faculty.toUpperCase() === current.faculty.toUpperCase();
+                                
+                                if (sameSubject && sameRoom && sameFaculty && areTimesConsecutiveForSpeech(lastEnd, nextStart)) {
+                                    mergedEnd = nextEnd;
+                                    lastEnd = nextEnd;
+                                    i = j;
+                                    lookaheadMerged = true;
+                                    j++;
+                                    continue;
+                                }
+                            }
+                            break;
+                        }
+                        
+                        if (lookaheadMerged) {
+                            merged.push({
+                                slot: `${currentStart}-${mergedEnd}`,
+                                subject: current.subject,
+                                room: current.room,
+                                faculty: current.faculty
+                            });
+                            continue;
+                        }
+                    }
+                }
+                merged.push(current);
+            }
+            return merged;
+        }
+
         function speakAssistantText(htmlText) {
             if (!voiceRepliesEnabled || !('speechSynthesis' in window)) return;
-            let plainText = htmlText
-                .replace(/<br\s*\/?>/gi, '. ')
-                .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
-                .replace(/<[^>]*>/g, ' ')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/&amp;/g, 'and')
-                .replace(/Room:\s*(?:—|-|not assigned|undefined|null)\b\.?/gi, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlText, 'text/html');
+            
+            const cards = extractCardsFromHTML(doc);
+            let plainText = '';
+            
+            if (cards.length > 0) {
+                doc.querySelectorAll('.slot-badge').forEach(badge => {
+                    const cardContainer = badge.closest('div.bg-gradient-to-r') || badge.parentElement;
+                    if (cardContainer) cardContainer.remove();
+                });
+                
+                const slotRegex = /\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)\b/;
+                doc.querySelectorAll('div').forEach(div => {
+                    if (div.children.length >= 3 && div.children.length <= 5) {
+                        const firstChildText = div.children[0].innerText.trim();
+                        if (slotRegex.test(firstChildText)) {
+                            div.remove();
+                        }
+                    }
+                });
+                
+                const mainMsg = doc.body.innerText
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/&amp;/g, 'and')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                const mergedCards = mergeConsecutiveLabCards(cards);
+                
+                const cardAnnouncements = mergedCards.map(c => {
+                    const roomText = (c.room && c.room !== '—') ? `Room: ${c.room}` : '';
+                    const facultyText = (c.faculty && c.faculty !== '—') ? `Faculty: ${c.faculty}` : '';
+                    return `${c.slot}. ${c.subject}. ${roomText}. ${facultyText}.`;
+                }).join(' ');
+                
+                plainText = (mainMsg ? mainMsg + '. ' : '') + cardAnnouncements;
+            } else {
+                plainText = htmlText
+                    .replace(/<br\s*\/?>/gi, '. ')
+                    .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
+                    .replace(/<[^>]*>/g, ' ')
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/&amp;/g, 'and')
+                    .replace(/Room:\s*(?:—|-|not assigned|undefined|null)\b\.?/gi, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+            
             plainText = expandFacultyCodesForSpeech(plainText);
             plainText = normalizeFacultyForSpeech(plainText);
             plainText = expandSubjectCodesForSpeech(plainText);
