@@ -1,4 +1,4 @@
-const APP_VERSION = '2026-07-13-speech-ai-faculty-v4';
+const APP_VERSION = '2026-07-16-speech-ai-faculty-v6';
 const APP_CACHE = `mgm-student-portal-app-${APP_VERSION}`;
 const RUNTIME_CACHE = `mgm-student-portal-runtime-${APP_VERSION}`;
 const CACHE_PREFIX = 'mgm-student-portal-';

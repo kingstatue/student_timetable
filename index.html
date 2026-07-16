@@ -369,7 +369,13 @@
             "PYTHON": "python",
             "MSCLAB": "MSc lab",
             "SLAB": "skill lab",
-            "SKLR1": "skil room 1"
+            "SLAB1": "skill lab 1",
+            "SLAB2": "skill lab 2",
+            "SLAB3": "skill lab 3",
+            "SKLR1": "skill room 1",
+            "SKLR2": "skill room 2",
+            "SKLR3": "skill room 3",
+            "SKLR4": "skill room 4"
         };
         let subjectSpeechMap = normalizeSubjectSpeechMap(DEFAULT_SUBJECT_SPEECH_MAP);
         let registeredSections = [];
@@ -520,7 +526,7 @@
             document.getElementById('section-pins-modal').classList.add('hidden');
         }
 
-        const APP_BUILD_VERSION = '2026-07-13-speech-ai-faculty-v4';
+        const APP_BUILD_VERSION = '2026-07-16-speech-ai-faculty-v6';
         let serviceWorkerRefreshInProgress = false;
 
         document.addEventListener("DOMContentLoaded", async () => {
@@ -1620,50 +1626,101 @@
             const parser = new DOMParser();
             const doc = parser.parseFromString(htmlText, 'text/html');
             
-            const cards = extractCardsFromHTML(doc);
+            const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             let plainText = '';
             
-            if (cards.length > 0) {
-                doc.querySelectorAll('.slot-badge').forEach(badge => {
-                    const cardContainer = badge.closest('div.bg-gradient-to-r') || badge.parentElement;
-                    if (cardContainer) cardContainer.remove();
+            // Identify day headers to see if this is a weekly overview
+            const dayContainers = [];
+            doc.querySelectorAll('h4').forEach(h4 => {
+                const text = h4.innerText.trim();
+                if (DAYS_OF_WEEK.includes(text)) {
+                    dayContainers.push({
+                        day: text,
+                        container: h4.parentElement
+                    });
+                }
+            });
+            
+            if (dayContainers.length > 0) {
+                // Restructure the weekly overview: Group cards by day and announce "Monday schedule", "Tuesday schedule", etc.
+                const tempDoc = parser.parseFromString(htmlText, 'text/html');
+                dayContainers.forEach(dc => {
+                    const headers = tempDoc.querySelectorAll('h4');
+                    headers.forEach(h => {
+                        if (h.innerText.trim() === dc.day) {
+                            const parent = h.parentElement;
+                            if (parent) parent.remove();
+                        }
+                    });
                 });
                 
-                const slotRegex = /\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)\b/;
-                doc.querySelectorAll('div').forEach(div => {
-                    if (div.children.length >= 3 && div.children.length <= 5) {
-                        const firstChildText = div.children[0].innerText.trim();
-                        if (slotRegex.test(firstChildText)) {
-                            div.remove();
-                        }
+                const titleText = tempDoc.body.innerText
+                    .replace(/&nbsp;/g, ' ')
+                    .replace(/&amp;/g, 'and')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                
+                const dayAnnouncements = [];
+                dayContainers.forEach(dc => {
+                    const cards = extractCardsFromHTML(dc.container);
+                    if (cards.length > 0) {
+                        const mergedCards = mergeConsecutiveLabCards(cards);
+                        const cardSpeech = mergedCards.map(c => {
+                            const cleanRoom = String(c.room || '').replace(/\s*\+\s*/g, ' and ');
+                            const roomText = (cleanRoom && cleanRoom !== '—') ? ` in ${cleanRoom}` : '';
+                            return `${c.slot}: ${c.subject}${roomText}`;
+                        }).join('. ');
+                        dayAnnouncements.push(`${dc.day} schedule. ${cardSpeech}`);
                     }
                 });
                 
-                const mainMsg = doc.body.innerText
-                    .replace(/&nbsp;/g, ' ')
-                    .replace(/&amp;/g, 'and')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                
-                const mergedCards = mergeConsecutiveLabCards(cards);
-                
-                const cardAnnouncements = mergedCards.map(c => {
-                    const roomText = (c.room && c.room !== '—') ? `Room: ${c.room}` : '';
-                    const facultyText = (c.faculty && c.faculty !== '—') ? `Faculty: ${c.faculty}` : '';
-                    return `${c.slot}. ${c.subject}. ${roomText}. ${facultyText}.`;
-                }).join(' ');
-                
-                plainText = (mainMsg ? mainMsg + '. ' : '') + cardAnnouncements;
+                plainText = (titleText ? titleText + '. ' : '') + dayAnnouncements.join('. ');
             } else {
-                plainText = htmlText
-                    .replace(/<br\s*\/?>/gi, '. ')
-                    .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
-                    .replace(/<[^>]*>/g, ' ')
-                    .replace(/&nbsp;/g, ' ')
-                    .replace(/&amp;/g, 'and')
-                    .replace(/Room:\s*(?:—|-|not assigned|undefined|null)\b\.?/gi, ' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
+                // Single day or chatbot schedule
+                const cards = extractCardsFromHTML(doc);
+                
+                if (cards.length > 0) {
+                    doc.querySelectorAll('.slot-badge').forEach(badge => {
+                        const cardContainer = badge.closest('div.bg-gradient-to-r') || badge.parentElement;
+                        if (cardContainer) cardContainer.remove();
+                    });
+                    
+                    const slotRegex = /\b(\d{1,2}(?:[:.]\d{1,2})?)\s*-\s*(\d{1,2}(?:[:.]\d{1,2})?)\b/;
+                    doc.querySelectorAll('div').forEach(div => {
+                        if (div.children.length >= 3 && div.children.length <= 5) {
+                            const firstChildText = div.children[0].innerText.trim();
+                            if (slotRegex.test(firstChildText)) {
+                                div.remove();
+                            }
+                        }
+                    });
+                    
+                    const mainMsg = doc.body.innerText
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&amp;/g, 'and')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    
+                    const mergedCards = mergeConsecutiveLabCards(cards);
+                    
+                    const cardSpeech = mergedCards.map(c => {
+                        const cleanRoom = String(c.room || '').replace(/\s*\+\s*/g, ' and ');
+                        const roomText = (cleanRoom && cleanRoom !== '—') ? ` in ${cleanRoom}` : '';
+                        return `${c.slot}: ${c.subject}${roomText}`;
+                    }).join('. ');
+                    
+                    plainText = (mainMsg ? mainMsg + '. ' : '') + cardSpeech;
+                } else {
+                    plainText = htmlText
+                        .replace(/<br\s*\/?>/gi, '. ')
+                        .replace(/<\/div>|<\/p>|<\/h\d>|<\/span>/gi, '. ')
+                        .replace(/<[^>]*>/g, ' ')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/&amp;/g, 'and')
+                        .replace(/Room:\s*(?:—|-|not assigned|undefined|null)\b\.?/gi, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
             }
             
             plainText = expandFacultyCodesForSpeech(plainText);
