@@ -2151,25 +2151,36 @@
         }
 
         function buildWholeWeekGridHTML() {
-            const wDays = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-            
-            // Collect all unique slots for this section
-            const allSlots = new Set();
-            wDays.forEach(day => {
+            const weekdayDays = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
+            const satDay = 'Saturday';
+
+            // Collect weekday (Mon-Fri) unique slots — these drive the main header
+            const weekdaySlotSet = new Set();
+            weekdayDays.forEach(day => {
                 const hits = getSectionScheduleForDay(day, localSelectedSection);
-                hits.forEach(hit => {
-                    if (hit.slot) allSlots.add(hit.slot);
-                });
+                hits.forEach(hit => { if (hit.slot) weekdaySlotSet.add(hit.slot); });
             });
-            
-            const sortedSlots = Array.from(allSlots).sort((a, b) => parseSlotTimeToMinutes(a) - parseSlotTimeToMinutes(b));
-            
-            if (sortedSlots.length === 0) {
+
+            // Collect Saturday slots separately — Sat runs on its own timing
+            const satSlotSet = new Set();
+            getSectionScheduleForDay(satDay, localSelectedSection)
+                .forEach(hit => { if (hit.slot) satSlotSet.add(hit.slot); });
+
+            const weekdaySlots = Array.from(weekdaySlotSet)
+                .sort((a, b) => parseSlotTimeToMinutes(a) - parseSlotTimeToMinutes(b));
+            const satSlots = Array.from(satSlotSet)
+                .sort((a, b) => parseSlotTimeToMinutes(a) - parseSlotTimeToMinutes(b));
+
+            if (weekdaySlots.length === 0 && satSlots.length === 0) {
                 return `<div class="text-center py-8 text-slate-400 text-sm font-medium">
                     No classes scheduled for the week.
                 </div>`;
             }
-            
+
+            // Table column count = max of weekday and Saturday slot counts,
+            // so the Sat sub-header row lines up cleanly under the main grid.
+            const columnCount = Math.max(weekdaySlots.length, satSlots.length, 1);
+
             let html = `
             <div class="overflow-x-auto border border-slate-200 rounded-2xl shadow-sm bg-white smooth-scroll max-w-full">
                 <table class="w-full border-collapse text-left text-xs table-auto min-w-[950px]">
@@ -2178,43 +2189,42 @@
                             <th class="w-[100px] p-3 font-extrabold text-slate-700 bg-slate-100 uppercase tracking-wider sticky left-0 z-20 border-r border-slate-200 text-center">
                                 Day / Slot
                             </th>`;
-                            
-            sortedSlots.forEach(slot => {
+
+            for (let i = 0; i < columnCount; i++) {
+                const slot = weekdaySlots[i];
                 html += `
                             <th class="p-3 font-bold text-slate-700 text-center bg-slate-100 border-r border-slate-200 min-w-[140px] whitespace-nowrap">
                                 <div class="flex flex-col items-center justify-center">
-                                    <span class="text-blue-600 font-extrabold">${slot}</span>
+                                    <span class="text-blue-600 font-extrabold">${slot || '—'}</span>
                                 </div>
                             </th>`;
-            });
-            
+            }
+
             html += `
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-150">`;
-                    
-            wDays.forEach(day => {
+
+            // Render one day's row, aligning each item against the given slot list.
+            const renderDayRow = (day, slotList) => {
                 const hits = getSectionScheduleForDay(day, localSelectedSection);
                 const slotMap = {};
-                hits.forEach(hit => {
-                    slotMap[hit.slot] = hit;
-                });
-                
-                html += `
+                hits.forEach(hit => { slotMap[hit.slot] = hit; });
+
+                let row = `
                         <tr class="hover:bg-slate-50/40 transition-colors">
                             <td class="p-3 font-bold text-slate-900 bg-slate-50 border-r border-slate-200 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center whitespace-nowrap">
                                 ${day}
                             </td>`;
-                            
-                sortedSlots.forEach(slot => {
-                    const item = slotMap[slot];
-                    html += `
+
+                for (let i = 0; i < columnCount; i++) {
+                    const slot = slotList[i];
+                    const item = slot ? slotMap[slot] : null;
+                    row += `
                             <td class="p-2 border-r border-slate-150 align-top h-full min-w-[140px]">`;
-                            
                     if (item) {
                         const rooms = getRoomsDisplay(item);
-                        
-                        html += `
+                        row += `
                                 <div class="bg-gradient-to-br from-blue-50/90 to-indigo-50/50 border border-blue-100/80 p-2.5 rounded-xl h-full flex flex-col justify-between space-y-2 hover:shadow-md hover:from-blue-100/70 hover:to-indigo-100/50 transition-all duration-200">
                                     <div class="font-extrabold text-blue-900 text-[11px] leading-snug break-words">
                                         ${getSubjectDisplay(item)}
@@ -2227,25 +2237,52 @@
                                     </div>
                                 </div>`;
                     } else {
-                        html += `
+                        row += `
                                 <div class="flex items-center justify-center h-full min-h-[60px] text-slate-350 font-medium">
                                     —
                                 </div>`;
                     }
-                    
-                    html += `
+                    row += `
                             </td>`;
-                });
-                
+                }
+
+                row += `
+                        </tr>`;
+                return row;
+            };
+
+            // Mon-Fri rows aligned to the weekday slot header
+            weekdayDays.forEach(day => { html += renderDayRow(day, weekdaySlots); });
+
+            // Small sub-header row under Friday showing Saturday's own slot times,
+            // then the Saturday row itself aligned to that Sat slot list.
+            if (satSlots.length) {
+                html += `
+                        <tr class="bg-amber-50/70 border-t-2 border-amber-200">
+                            <th class="p-2 font-bold text-amber-800 text-[11px] uppercase tracking-wider bg-amber-100/80 border-r border-amber-200 sticky left-0 z-10 text-center whitespace-nowrap">
+                                Sat / Slot
+                            </th>`;
+                for (let i = 0; i < columnCount; i++) {
+                    const slot = satSlots[i];
+                    html += `
+                            <th class="p-2 text-center bg-amber-50/70 border-r border-amber-100 min-w-[140px] whitespace-nowrap">
+                                <span class="text-amber-700 font-bold text-[11px]">${slot || '—'}</span>
+                            </th>`;
+                }
                 html += `
                         </tr>`;
-            });
-            
+
+                html += renderDayRow(satDay, satSlots);
+            } else {
+                // No Saturday classes registered — still show the row for completeness.
+                html += renderDayRow(satDay, weekdaySlots);
+            }
+
             html += `
                     </tbody>
                 </table>
             </div>`;
-            
+
             return html;
         }
 
@@ -3222,6 +3259,7 @@
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1}' crossorigin="anonymous"></script>
 </body>
 </html>
