@@ -1991,15 +1991,24 @@
 
         // ── Helper: extract subject keyword from cell value ─────────────────────
         function extractSubject(str) {
-            // Cell values look like "DBMS (AA) [LH6]" or "DBMS LAB [Lab4]" or "ENG [LH4]"
-            return str.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
+            const text = String(str || '').replace(/\r/g, '\n');
+            const lines = [];
+            text.split('\n').forEach(line => {
+                const cleanLine = line.trim();
+                if (!cleanLine) return;
+                // Skip multiline slot staff annotations like "11.10-12.05: PRY + LIK..."
+                if (/^\d+[\d.:-]*\s*:/.test(cleanLine)) return;
+                lines.push(cleanLine);
+            });
+            let s = lines.join(' ');
+            s = s.replace(/\(.*?\)/g, '');
+            s = s.replace(/\[.*?\]/g, '');
+            s = s.replace(/\s+/g, ' ').trim();
+            return s;
         }
 
         function stripFacultyCodesFromSubject(str) {
-            return String(str || '')
-                .replace(/\(([A-Z_]+(?:\s*\+\s*[A-Z_]+)*)\)/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+            return extractSubject(str);
         }
 
         function getAllRoomsForItem(item) {
@@ -2059,9 +2068,11 @@
 
         function getSubjectDisplay(item) {
             const details = item && item.subjectDetails ? item.subjectDetails : '';
-            return isMultiSubjectItem(item)
-                ? formatElectiveSubjectFacultyDisplay(item)
-                : extractSubject(details);
+            const entries = getSubjectEntriesForDisplay(item);
+            if (entries.length) {
+                return entries.map(entry => entry.subject).join(' · ');
+            }
+            return extractSubject(details);
         }
 
         function getRoomsDisplay(item) {
